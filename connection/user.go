@@ -10,11 +10,11 @@ import (
 )
 
 type User struct {
-	ID        primitive.ObjectID `bson:"_id,omitempty"`
-	Nickname  string             `bson:"Nickname,omitempty"`
-	FirstName string             `bson:"FirstName,omitempty"`
-	LastName  string             `bson:"LastName, omitempty"`
-	Password  string             `bson:"Password, omitempty"`
+	ID        primitive.ObjectID `bson:"_id,omitempty" json:"ID"`
+	Nickname  string             `bson:"Nickname,omitempty" json:"Nickname" validate:"required"`
+	FirstName string             `bson:"FirstName,omitempty" json:"FirstName" validate:"required"`
+	LastName  string             `bson:"LastName, omitempty" json:"LastName" validate:"required"`
+	Password  string             `bson:"Password, omitempty" json:"Password" validate:"required"`
 }
 
 func (cl *ClientConnection) findUser(field string, dataToFind any) *User {
@@ -39,14 +39,15 @@ func (cl *ClientConnection) findUser(field string, dataToFind any) *User {
 	return &user
 }
 
-func (cl *ClientConnection) createUser(user User) {
+func (cl *ClientConnection) InsertUser(user User) (*mongo.InsertOneResult, error) {
 	userInfo := bson.D{{"Nickname", user.Nickname}, {"FirstName", user.FirstName}, {"LastName", user.LastName}}
-	_, err := cl.collection.InsertOne(context.TODO(), userInfo)
+	result, err := cl.collection.InsertOne(context.TODO(), userInfo)
 	if err != nil {
 		log.Warn().Err(err).Msg(" can`t insert user`s data into database")
-		return
+		return nil, err
 	}
 	log.Info().Msg("successfully insert user`s data")
+	return result, nil
 }
 
 func (cl *ClientConnection) updateUser(id *primitive.ObjectID, user User) {

@@ -3,25 +3,33 @@ package main
 import (
 	"app3.1/ENV"
 	"app3.1/connection"
-	"fmt"
+	"app3.1/server"
 	"github.com/labstack/echo/v4"
+	"go.mongodb.org/mongo-driver/bson/primitive"
 	"net/http"
 )
 
-func main() {
-	cfg := ENV.LoadENV("ENV/.env")
-	cfg.ParseENV()
+type User struct {
+	ID        primitive.ObjectID `bson:"_id,omitempty" json:"ID"`
+	Nickname  string             `bson:"Nickname,omitempty" json:"Nickname"`
+	FirstName string             `bson:"FirstName,omitempty" json:"FirstName"`
+	LastName  string             `bson:"LastName, omitempty" json:"LastName"`
+	Password  string             `bson:"Password, omitempty" json:"Password"`
+}
 
-	con := connection.NewConnection(*cfg)
-	fmt.Println(con)
+func main() {
+	ENV.LoadENV("ENV/.env")
+
+	connection.NewConnection()
 
 	e := echo.New()
 	e.GET("/", func(c echo.Context) error {
 		return c.String(http.StatusOK, "Hello, World!")
 	})
-	e.Logger.Fatal(e.Start(":1323"))
 
-	e.POST("/save", save)
+	server.UserRoute(e)
+
+	e.Logger.Fatal(e.Start(":1323"))
 
 }
 
