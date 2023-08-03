@@ -1,12 +1,9 @@
 package main
 
 import (
-	"app3.1/ENV"
-	"app3.1/connection"
 	"app3.1/server"
 	"github.com/labstack/echo/v4"
 	"go.mongodb.org/mongo-driver/bson/primitive"
-	"net/http"
 )
 
 type User struct {
@@ -18,24 +15,11 @@ type User struct {
 }
 
 func main() {
-	ENV.LoadENV("ENV/.env")
-
-	connection.NewConnection()
 
 	e := echo.New()
-	e.GET("/", func(c echo.Context) error {
-		return c.String(http.StatusOK, "Hello, World!")
-	})
 
 	server.UserRoute(e)
 
-	e.Logger.Fatal(e.Start(":1323"))
+	e.Logger.Fatal(e.Start(":6000"))
 
-}
-
-func save(c echo.Context) error {
-	// Get name and email
-	name := c.FormValue("name")
-	email := c.FormValue("email")
-	return c.String(http.StatusOK, "name:"+name+", email:"+email)
 }

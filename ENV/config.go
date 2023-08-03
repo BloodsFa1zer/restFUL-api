@@ -11,27 +11,28 @@ type Config struct {
 	URI_BD string `env:"URI_MongoDB"`
 }
 
-func LoadENV(filename string) {
+func LoadENV(filename string) *Config {
 	err := godotenv.Load(filename)
 	if err != nil {
-		log.Panic().Err(err).Msg(" does not load .ENV")
+		log.Panic().Err(err).Msg(" does not load .env")
 	}
-	log.Info().Msg("successfully load .ENV")
+	log.Info().Msg("successfully load .env")
+	cfg := Config{}
+	return &cfg
 
 }
 
-func ParseENV() *Config {
-	cfg := Config{}
-	err := env.Parse(&cfg)
+func (cfg *Config) ParseENV() {
+
+	err := env.Parse(cfg)
 	if err != nil {
 		log.Panic().Err(err).Msg(" unable to parse environment variables")
 	}
-	log.Info().Msg("successfully parsed .ENV")
-	return &cfg
+	log.Info().Msg("successfully parsed .env")
 }
 
-func MongoENV() string {
-	cfg := ParseENV()
+func (cfg *Config) MongoENV() string {
+	cfg.ParseENV()
 	fmt.Println(cfg.URI_BD)
 	return cfg.URI_BD
 }

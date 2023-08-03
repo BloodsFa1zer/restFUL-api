@@ -17,9 +17,9 @@ type User struct {
 	Password  string             `bson:"Password, omitempty" json:"Password" validate:"required"`
 }
 
-func (cl *ClientConnection) findUser(field string, dataToFind any) *User {
-
-	result := cl.collection.FindOne(context.TODO(), bson.M{field: dataToFind})
+func (cl *ClientConnection) FindUser(field string, objectID primitive.ObjectID) (*User, error) {
+	fmt.Println(objectID)
+	result := cl.collection.FindOne(context.TODO(), bson.M{field: objectID})
 
 	// check for errors in the finding
 	if result.Err() != nil {
@@ -29,14 +29,34 @@ func (cl *ClientConnection) findUser(field string, dataToFind any) *User {
 	// convert the cursor result to bson
 	var user User
 	// check for errors in the conversion
-	if err := result.Decode(&user); err != mongo.ErrNoDocuments {
+	if err := result.Decode(&user); err == mongo.ErrNoDocuments {
 		log.Warn().Err(err).Msg(" no results to convert")
-		return nil
+		return nil, err
 	} else if err != nil {
 		log.Warn().Err(err).Msg(" can`t convert results")
-		return nil
+		return nil, err
 	}
-	return &user
+	return &user, nil
+}
+
+func (cl *ClientConnection) FindUsers() (*mongo.Cursor, error) {
+
+	result, err := cl.collection.Find(context.TODO(), bson.M{})
+	if err != nil {
+		log.Warn().Err(result.Err()).Msg(" can`t find user")
+	}
+
+	// convert the cursor result to bson
+	var user []User
+	// check for errors in the conversion
+	if err := result.Decode(&user); err != mongo.ErrNoDocuments {
+		log.Warn().Err(err).Msg(" no results to convert")
+		return nil, err
+	} else if err != nil {
+		log.Warn().Err(err).Msg(" can`t convert results")
+		return nil, err
+	}
+	return result, nil
 }
 
 func (cl *ClientConnection) InsertUser(user User) (*mongo.InsertOneResult, error) {
@@ -50,21 +70,24 @@ func (cl *ClientConnection) InsertUser(user User) (*mongo.InsertOneResult, error
 	return result, nil
 }
 
-func (cl *ClientConnection) updateUser(id *primitive.ObjectID, user User) {
+func (cl *ClientConnection) UpdateUser(id *primitive.ObjectID, user User) (*mongo.UpdateResult, error) {
 
-	update := bson.D{{"Nickname", user.Nickname}, {"FirstName", user.FirstName}, {"LastName", user.LastName}}
-	_, err := cl.collection.UpdateByID(context.Background(), id, update)
+	update := bson.M{"$set": bson.M{"Nickname": user.Nickname, "FirstName": user.FirstName, "LastName": user.LastName}}
+	result, err := cl.collection.UpdateByID(context.Background(), id, update)
 	if err != nil {
-		panic(err)
+		log.Warn().Err(err).Msg(" can`t update user`s data")
+		return nil, err
 	}
+	return result, nil
 
 }
 
-func (cl *ClientConnection) deleteUser(id *primitive.ObjectID, user User) {
-	result, err := cl.collection.DeleteOne(context.Background(), id)
+func (cl *ClientConnection) DeleteUser(id *primitive.ObjectID) (*mongo.DeleteResult, error) {
+	result, err := cl.collection.DeleteOne(context.Background(), bson.M{"_id": id})
 	if err != nil {
-		panic(err)
+		log.Warn().Err(err).Msg(" can`t delete user`s data")
+		return &mongo.DeleteResult{}, err
 	}
-	fmt.Printf("Deleted %d documents. \n", result.DeletedCount)
 
+	return result, nil
 }
