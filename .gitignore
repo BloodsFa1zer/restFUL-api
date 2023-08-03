@@ -1,5 +1,5 @@
 .env
 .idea
 .xml
-.modules.xml
-.vcs.xml
+.idea/vcs.xml
+idea/modules.xml
