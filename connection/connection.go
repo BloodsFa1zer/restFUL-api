@@ -1,7 +1,7 @@
 package connection
 
 import (
-	"app3.1/ENV"
+	"app3.1/config"
 	"context"
 	"fmt"
 	"github.com/rs/zerolog/log"
@@ -14,7 +14,7 @@ type ClientConnection struct {
 }
 
 func NewConnection() *mongo.Client {
-	cfg := ENV.LoadENV("ENV/.env")
+	cfg := config.LoadENV("config/.env")
 	ctx := context.TODO()
 	client, err := mongo.Connect(ctx, options.Client().ApplyURI(cfg.MongoENV()))
 	if err != nil {
