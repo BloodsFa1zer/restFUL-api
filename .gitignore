@@ -3,3 +3,4 @@
 .xml
 .idea/vcs.xml
 idea/modules.xml
+.gitignore

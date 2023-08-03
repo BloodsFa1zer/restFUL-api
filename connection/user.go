@@ -2,11 +2,11 @@ package connection
 
 import (
 	"context"
-	"fmt"
 	"github.com/rs/zerolog/log"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
+	"time"
 )
 
 type User struct {
@@ -14,17 +14,21 @@ type User struct {
 	Nickname  string             `bson:"Nickname,omitempty" json:"Nickname" validate:"required"`
 	FirstName string             `bson:"FirstName,omitempty" json:"FirstName" validate:"required"`
 	LastName  string             `bson:"LastName, omitempty" json:"LastName" validate:"required"`
-	Password  string             `bson:"Password, omitempty" json:"Password" validate:"required, password"`
+	Password  string             `bson:"Password, omitempty" json:"Password" validate:"required"`
+	CreatedAt string             `bson:"created_at" json:"created_at"`
+	UpdatedAt string             `bson:"updated_at,omitempty" json:"updated_at,omitempty"`
+	DeletedAt string             `bson:"deleted_at,omitempty" json:"deleted_at,omitempty"`
 }
 
-func (cl *ClientConnection) FindUser(field string, objectID primitive.ObjectID) (*User, error) {
-	fmt.Println(objectID)
-	result := cl.collection.FindOne(context.TODO(), bson.M{field: objectID})
+func (cl *ClientConnection) FindUser(field string, data any) (*User, error) {
+
+	result := cl.collection.FindOne(context.TODO(), bson.M{field: data})
 
 	// check for errors in the finding
 	if result.Err() != nil {
 		log.Warn().Err(result.Err()).Msg(" can`t find user")
 	}
+	log.Info().Msg(" find users")
 
 	// convert the cursor result to bson
 	var user User
@@ -43,9 +47,9 @@ func (cl *ClientConnection) FindUsers() (*[]User, error) {
 
 	results, err := cl.collection.Find(context.TODO(), bson.M{})
 	if err != nil {
-		log.Warn().Err(results.Err()).Msg(" can`t find user")
+		log.Warn().Err(results.Err()).Msg(" can`t find users")
 	}
-
+	log.Info().Msg(" find users")
 	// convert the cursor result to bson
 	var users []User
 
@@ -60,7 +64,16 @@ func (cl *ClientConnection) FindUsers() (*[]User, error) {
 }
 
 func (cl *ClientConnection) InsertUser(user User) (*mongo.InsertOneResult, error) {
-	userInfo := bson.D{{"Nickname", user.Nickname}, {"FirstName", user.FirstName}, {"LastName", user.LastName}}
+	//	password.Hash(user.Password)
+	time := time.Now().Format("2006.01.02 15:04")
+	userInfo := bson.D{
+		{"Nickname", user.Nickname},
+		{"FirstName", user.FirstName},
+		{"LastName", user.LastName},
+		{"Password", user.Password},
+		{"created_at", time},
+	}
+
 	result, err := cl.collection.InsertOne(context.TODO(), userInfo)
 	if err != nil {
 		log.Warn().Err(err).Msg(" can`t insert user`s data into database")
@@ -71,8 +84,15 @@ func (cl *ClientConnection) InsertUser(user User) (*mongo.InsertOneResult, error
 }
 
 func (cl *ClientConnection) UpdateUser(id *primitive.ObjectID, user User) (*mongo.UpdateResult, error) {
-
-	update := bson.M{"$set": bson.M{"Nickname": user.Nickname, "FirstName": user.FirstName, "LastName": user.LastName}}
+	//	password.Hash(user.Password)
+	time := time.Now().Format("2006.01.02 15:04")
+	update := bson.D{{"$set", bson.D{
+		{"Nickname", user.Nickname},
+		{"FirstName", user.FirstName},
+		{"LastName", user.LastName},
+		{"Password", user.Password},
+		{"updated_at", time},
+	}}}
 	result, err := cl.collection.UpdateByID(context.Background(), id, update)
 	if err != nil {
 		log.Warn().Err(err).Msg(" can`t update user`s data")

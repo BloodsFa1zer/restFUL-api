@@ -7,6 +7,7 @@ import (
 	"github.com/go-playground/validator/v10"
 	"github.com/labstack/echo/v4"
 	"go.mongodb.org/mongo-driver/bson/primitive"
+	"golang.org/x/crypto/bcrypt"
 	"net/http"
 )
 
@@ -111,4 +112,21 @@ func GetAllUsers(c echo.Context) error {
 	}
 
 	return c.JSON(http.StatusOK, response.UserResponse{Status: http.StatusOK, Message: "success", Data: &echo.Map{"data": users}})
+}
+
+func CheckAuth(c echo.Context) error {
+
+	return nil
+}
+
+func Verify(hashed, password string) bool {
+	user, err := cl.FindUser("Password", password)
+	if err != nil {
+		return false
+	}
+	errPassword := bcrypt.CompareHashAndPassword([]byte(hashed), []byte(user.Password))
+	if errPassword == nil {
+		return true
+	}
+	return false
 }
