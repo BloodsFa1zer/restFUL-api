@@ -9,5 +9,5 @@ func UserRoute(e *echo.Echo) {
 	e.GET("/user/:userId", GetUser)
 	e.PUT("/user/:userId", EditUser)
 	e.DELETE("/user/:userId", DeleteUser)
-	//e.GET("/users", GetAllUsers)
+	e.GET("/users", GetAllUsers)
 }

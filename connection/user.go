@@ -14,7 +14,7 @@ type User struct {
 	Nickname  string             `bson:"Nickname,omitempty" json:"Nickname" validate:"required"`
 	FirstName string             `bson:"FirstName,omitempty" json:"FirstName" validate:"required"`
 	LastName  string             `bson:"LastName, omitempty" json:"LastName" validate:"required"`
-	Password  string             `bson:"Password, omitempty" json:"Password" validate:"required"`
+	Password  string             `bson:"Password, omitempty" json:"Password" validate:"required, password"`
 }
 
 func (cl *ClientConnection) FindUser(field string, objectID primitive.ObjectID) (*User, error) {
@@ -39,24 +39,24 @@ func (cl *ClientConnection) FindUser(field string, objectID primitive.ObjectID) 
 	return &user, nil
 }
 
-func (cl *ClientConnection) FindUsers() (*mongo.Cursor, error) {
+func (cl *ClientConnection) FindUsers() (*[]User, error) {
 
-	result, err := cl.collection.Find(context.TODO(), bson.M{})
+	results, err := cl.collection.Find(context.TODO(), bson.M{})
 	if err != nil {
-		log.Warn().Err(result.Err()).Msg(" can`t find user")
+		log.Warn().Err(results.Err()).Msg(" can`t find user")
 	}
 
 	// convert the cursor result to bson
-	var user []User
-	// check for errors in the conversion
-	if err := result.Decode(&user); err != mongo.ErrNoDocuments {
-		log.Warn().Err(err).Msg(" no results to convert")
-		return nil, err
-	} else if err != nil {
-		log.Warn().Err(err).Msg(" can`t convert results")
-		return nil, err
+	var users []User
+
+	for results.Next(context.TODO()) {
+		var singleUser User
+		if err = results.Decode(&singleUser); err != nil {
+			return nil, err
+		}
+		users = append(users, singleUser)
 	}
-	return result, nil
+	return &users, nil
 }
 
 func (cl *ClientConnection) InsertUser(user User) (*mongo.InsertOneResult, error) {

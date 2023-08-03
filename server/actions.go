@@ -102,22 +102,13 @@ func DeleteUser(c echo.Context) error {
 	return c.JSON(http.StatusOK, response.UserResponse{Status: http.StatusOK, Message: "success", Data: &echo.Map{"data": "User successfully deleted"}})
 }
 
-//func GetAllUsers(c echo.Context) error {
-//	var users []connection.User
-//	cl := connection.GetCollection()
-//
-//	results, err := cl.FindUsers()
-//	if err != nil {
-//		return c.JSON(http.StatusInternalServerError, response.UserResponse{Status: http.StatusInternalServerError, Message: "error", Data: &echo.Map{"data": err.Error()}})
-//	}
-//
-//	for results.Next(context.TODO()) {
-//		var singleUser connection.User
-//		if err = results.Decode(&singleUser); err != nil {
-//			return c.JSON(http.StatusInternalServerError, response.UserResponse{Status: http.StatusInternalServerError, Message: "error", Data: &echo.Map{"data": err.Error()}})
-//		}
-//		users = append(users, singleUser)
-//	}
-//
-//	return c.JSON(http.StatusOK, response.UserResponse{Status: http.StatusOK, Message: "success", Data: &echo.Map{"data": users}})
-//}
+func GetAllUsers(c echo.Context) error {
+	cl := connection.GetCollection()
+
+	users, err := cl.FindUsers()
+	if err != nil {
+		return c.JSON(http.StatusInternalServerError, response.UserResponse{Status: http.StatusInternalServerError, Message: "error", Data: &echo.Map{"data": err.Error()}})
+	}
+
+	return c.JSON(http.StatusOK, response.UserResponse{Status: http.StatusOK, Message: "success", Data: &echo.Map{"data": users}})
+}
