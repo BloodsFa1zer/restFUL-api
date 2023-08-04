@@ -7,6 +7,7 @@ import (
 	"github.com/go-playground/validator/v10"
 	"github.com/labstack/echo/v4"
 	"go.mongodb.org/mongo-driver/bson/primitive"
+	"go.mongodb.org/mongo-driver/mongo"
 	"golang.org/x/crypto/bcrypt"
 	"net/http"
 )
@@ -31,6 +32,10 @@ func CreateUser(c echo.Context) error {
 		FirstName: user.FirstName,
 		LastName:  user.LastName,
 		Password:  user.Password,
+	}
+	_, FindErr := cl.FindUser("Nickname", user.Nickname)
+	if FindErr != mongo.ErrNoDocuments {
+		return c.JSON(http.StatusLocked, response.UserResponse{Status: http.StatusLocked, Message: "error", Data: &echo.Map{"data": "That Nickname is already taken"}})
 	}
 
 	result, err := cl.InsertUser(newUser)
