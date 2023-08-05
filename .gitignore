@@ -1,6 +1,7 @@
 .env
 .idea
-.xml
 .idea/vcs.xml
 idea/modules.xml
 .gitignore
+go.mod
+go.sum
