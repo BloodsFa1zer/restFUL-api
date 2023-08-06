@@ -3,6 +3,7 @@ package handlers
 import (
 	"app3.1/database"
 	"app3.1/response"
+	"crypto/subtle"
 	"errors"
 	"github.com/go-playground/validator/v10"
 	"github.com/labstack/echo/v4"
@@ -103,4 +104,27 @@ func DeleteUser(c echo.Context) error {
 	}
 
 	return c.JSON(http.StatusOK, response.UserResponse{Status: http.StatusOK, Message: "success", Data: &echo.Map{"data": "user successfully deleted"}})
+}
+
+func isValidCredentials(username, password string) bool {
+	if subtle.ConstantTimeCompare([]byte(username), []byte("user")) == 1 &&
+		subtle.ConstantTimeCompare([]byte(password), []byte("password")) == 1 {
+		return true
+	}
+	return false
+}
+
+func ProtectedHandler(c echo.Context) error {
+
+	username, password, ok := c.Request().BasicAuth()
+	if !ok {
+		return c.JSON(http.StatusUnauthorized, response.UserResponse{Status: http.StatusUnauthorized, Message: "error", Data: &echo.Map{"data": "Credentials are not valid"}})
+	}
+
+	if !isValidCredentials(username, password) {
+		return c.JSON(http.StatusUnauthorized, response.UserResponse{Status: http.StatusUnauthorized, Message: "error", Data: &echo.Map{"data": "Credentials are not valid"}})
+	}
+
+	return c.JSON(http.StatusOK, response.UserResponse{Status: http.StatusOK, Message: "success", Data: &echo.Map{"data": "You are in the protected mode"}})
+
 }

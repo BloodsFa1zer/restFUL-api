@@ -12,4 +12,5 @@ func UserRoute(e *echo.Echo) {
 	e.DELETE("/soft_user_delete/:userName", handlers.SoftDeleteUser)
 	e.DELETE("/user/:userName", handlers.DeleteUser)
 	e.GET("/users", handlers.GetAllUsers)
+	e.GET("/protected", handlers.ProtectedHandler)
 }

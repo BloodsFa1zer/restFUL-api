@@ -8,6 +8,6 @@ import (
 func main() {
 	e := echo.New()
 	routes.UserRoute(e)
-	e.Logger.Fatal(e.Start(":6000"))
 
+	e.Logger.Fatal(e.Start(":6000"))
 }
