@@ -38,6 +38,20 @@ func (db *Database) FindUser(userName string) (*User, error) {
 	return &selectedUser, nil
 }
 
+func (db *Database) IsUserDeleted(userName string) bool {
+	sqlSelect := `SELECT NickName FROM User WHERE NickName = ? AND DeletedAt IS NOT NULL`
+	var checkedUser string
+	row := db.connection.QueryRow(sqlSelect, userName)
+	err := row.Scan(&checkedUser)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return true
+		}
+	}
+	return false
+
+}
+
 func (db *Database) InsertUser(user User) (string, error) {
 	formattedTime := time.Now().Format("2006.01.02 15:04")
 
@@ -59,6 +73,7 @@ func (db *Database) InsertUser(user User) (string, error) {
 }
 
 func (db *Database) UpdateUser(userName string, user User) (string, error) {
+
 	hashedPassword, err := config.Hash(user.Password)
 	if err != nil {
 		log.Warn().Err(err).Msg(" can`t hashed user`s password")

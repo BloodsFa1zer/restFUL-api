@@ -77,24 +77,28 @@ func (rt *RootUser) EditUser(c echo.Context) error {
 
 	if rt.GivePerm(c) {
 		userName := c.Param("userName")
-		var user database.User
+		if db.IsUserDeleted(userName) == true {
+			var user database.User
 
-		if err := c.Bind(&user); err != nil {
-			return c.JSON(http.StatusBadRequest, response.UserResponse{Status: http.StatusBadRequest, Message: "error", Data: &echo.Map{"data": err.Error()}})
+			if err := c.Bind(&user); err != nil {
+				return c.JSON(http.StatusBadRequest, response.UserResponse{Status: http.StatusBadRequest, Message: "error", Data: &echo.Map{"data": err.Error()}})
+			}
+
+			if validationErr := validate.Struct(&user); validationErr != nil {
+				return c.JSON(http.StatusBadRequest, response.UserResponse{Status: http.StatusBadRequest, Message: "error", Data: &echo.Map{"data": validationErr.Error()}})
+			}
+
+			updatedUserName, err := db.UpdateUser(userName, user)
+			if err != nil {
+				return c.JSON(http.StatusInternalServerError, response.UserResponse{Status: http.StatusInternalServerError, Message: "error", Data: &echo.Map{"data": err.Error()}})
+			}
+
+			updatedUser, _ := db.FindUser(updatedUserName)
+
+			return c.JSON(http.StatusOK, response.UserResponse{Status: http.StatusOK, Message: "success", Data: &echo.Map{"data": updatedUser}})
+		} else {
+			return c.JSON(http.StatusConflict, response.UserResponse{Status: http.StatusConflict, Message: "error", Data: &echo.Map{"data": "This user is already deleted"}})
 		}
-
-		if validationErr := validate.Struct(&user); validationErr != nil {
-			return c.JSON(http.StatusBadRequest, response.UserResponse{Status: http.StatusBadRequest, Message: "error", Data: &echo.Map{"data": validationErr.Error()}})
-		}
-
-		updatedUserName, err := db.UpdateUser(userName, user)
-		if err != nil {
-			return c.JSON(http.StatusInternalServerError, response.UserResponse{Status: http.StatusInternalServerError, Message: "error", Data: &echo.Map{"data": err.Error()}})
-		}
-
-		updatedUser, _ := db.FindUser(updatedUserName)
-
-		return c.JSON(http.StatusOK, response.UserResponse{Status: http.StatusOK, Message: "success", Data: &echo.Map{"data": updatedUser}})
 	} else {
 		return c.JSON(http.StatusLocked, response.UserResponse{Status: http.StatusLocked, Message: "error", Data: &echo.Map{"data": "Only RootUsers can do that"}})
 	}
@@ -112,15 +116,17 @@ func GetAllUsers(c echo.Context) error {
 func (rt *RootUser) SoftDeleteUser(c echo.Context) error {
 	if rt.GivePerm(c) {
 		userName := c.Param("userName")
+		if db.IsUserDeleted(userName) == true {
+			deletedUserName, err := db.SoftDeleteUser(userName)
+			if err != nil {
+				return c.JSON(http.StatusInternalServerError, response.UserResponse{Status: http.StatusInternalServerError, Message: "error", Data: &echo.Map{"data": err.Error()}})
+			}
+			updatedUser, _ := db.FindUser(deletedUserName)
 
-		deletedUserName, err := db.SoftDeleteUser(userName)
-		if err != nil {
-			return c.JSON(http.StatusInternalServerError, response.UserResponse{Status: http.StatusInternalServerError, Message: "error", Data: &echo.Map{"data": err.Error()}})
+			return c.JSON(http.StatusOK, response.UserResponse{Status: http.StatusOK, Message: "success", Data: &echo.Map{"data": updatedUser}})
+		} else {
+			return c.JSON(http.StatusConflict, response.UserResponse{Status: http.StatusConflict, Message: "error", Data: &echo.Map{"data": "This user is already deleted"}})
 		}
-		updatedUser, _ := db.FindUser(deletedUserName)
-
-		return c.JSON(http.StatusOK, response.UserResponse{Status: http.StatusOK, Message: "success", Data: &echo.Map{"data": updatedUser}})
-
 	} else {
 		return c.JSON(http.StatusLocked, response.UserResponse{Status: http.StatusLocked, Message: "error", Data: &echo.Map{"data": "Only RootUsers can do that"}})
 	}
@@ -130,13 +136,17 @@ func (rt *RootUser) DeleteUser(c echo.Context) error {
 
 	if rt.GivePerm(c) {
 		userName := c.Param("userName")
+		if db.IsUserDeleted(userName) == true {
+			err := db.DeleteUser(userName)
+			if err != nil {
+				return c.JSON(http.StatusInternalServerError, response.UserResponse{Status: http.StatusInternalServerError, Message: "error", Data: &echo.Map{"data": err.Error()}})
+			}
 
-		err := db.DeleteUser(userName)
-		if err != nil {
-			return c.JSON(http.StatusInternalServerError, response.UserResponse{Status: http.StatusInternalServerError, Message: "error", Data: &echo.Map{"data": err.Error()}})
+			return c.JSON(http.StatusOK, response.UserResponse{Status: http.StatusOK, Message: "success", Data: &echo.Map{"data": "user successfully deleted"}})
+		} else {
+			return c.JSON(http.StatusConflict, response.UserResponse{Status: http.StatusConflict, Message: "error", Data: &echo.Map{"data": "This user is already deleted"}})
 		}
 
-		return c.JSON(http.StatusOK, response.UserResponse{Status: http.StatusOK, Message: "success", Data: &echo.Map{"data": "user successfully deleted"}})
 	} else {
 		return c.JSON(http.StatusLocked, response.UserResponse{Status: http.StatusLocked, Message: "error", Data: &echo.Map{"data": "Only RootUsers can do that"}})
 	}
