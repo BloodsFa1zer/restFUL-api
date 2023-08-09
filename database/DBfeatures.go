@@ -58,7 +58,6 @@ func (db *Database) InsertUser(user User) (string, error) {
 
 }
 
-// BasicAuth required to execute UpdateUser!!!
 func (db *Database) UpdateUser(userName string, user User) (string, error) {
 	hashedPassword, err := config.Hash(user.Password)
 	if err != nil {
@@ -114,7 +113,6 @@ func (db *Database) SoftDeleteUser(userName string) (string, error) {
 	return userName, nil
 }
 
-// BasicAuth required to execute DeleteUser!!!
 func (db *Database) DeleteUser(userName string) error {
 	sqlDelete := "DELETE FROM User WHERE NickName = ?"
 

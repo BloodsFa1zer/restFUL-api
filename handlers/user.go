@@ -5,13 +5,34 @@ import (
 	"app3.1/response"
 	"crypto/subtle"
 	"errors"
+	"fmt"
 	"github.com/go-playground/validator/v10"
 	"github.com/labstack/echo/v4"
 	"net/http"
 )
 
+type UserActions interface {
+	EditUser(c echo.Context) error
+	SoftDeleteUser(c echo.Context) error
+	DeleteUser(c echo.Context) error
+}
+
+var RT = RootUser{}
+
+type RootUser struct {
+	isRootEnabled bool
+}
+
 var db = database.Connection()
 var validate = validator.New()
+
+type UserHandler struct {
+	dbUser UserActions
+}
+
+func NewUserHandler(User UserActions) *UserHandler {
+	return &UserHandler{dbUser: User}
+}
 
 func CreateUser(c echo.Context) error {
 	var user database.User
@@ -52,26 +73,31 @@ func GetUser(c echo.Context) error {
 	return c.JSON(http.StatusOK, response.UserResponse{Status: http.StatusOK, Message: "success", Data: &echo.Map{"data": user}})
 }
 
-func EditUser(c echo.Context) error {
-	userName := c.Param("userName")
-	var user database.User
+func (rt *RootUser) EditUser(c echo.Context) error {
 
-	if err := c.Bind(&user); err != nil {
-		return c.JSON(http.StatusBadRequest, response.UserResponse{Status: http.StatusBadRequest, Message: "error", Data: &echo.Map{"data": err.Error()}})
+	if rt.GivePerm(c) {
+		userName := c.Param("userName")
+		var user database.User
+
+		if err := c.Bind(&user); err != nil {
+			return c.JSON(http.StatusBadRequest, response.UserResponse{Status: http.StatusBadRequest, Message: "error", Data: &echo.Map{"data": err.Error()}})
+		}
+
+		if validationErr := validate.Struct(&user); validationErr != nil {
+			return c.JSON(http.StatusBadRequest, response.UserResponse{Status: http.StatusBadRequest, Message: "error", Data: &echo.Map{"data": validationErr.Error()}})
+		}
+
+		updatedUserName, err := db.UpdateUser(userName, user)
+		if err != nil {
+			return c.JSON(http.StatusInternalServerError, response.UserResponse{Status: http.StatusInternalServerError, Message: "error", Data: &echo.Map{"data": err.Error()}})
+		}
+
+		updatedUser, _ := db.FindUser(updatedUserName)
+
+		return c.JSON(http.StatusOK, response.UserResponse{Status: http.StatusOK, Message: "success", Data: &echo.Map{"data": updatedUser}})
+	} else {
+		return c.JSON(http.StatusLocked, response.UserResponse{Status: http.StatusLocked, Message: "error", Data: &echo.Map{"data": "Only RootUsers can do that"}})
 	}
-
-	if validationErr := validate.Struct(&user); validationErr != nil {
-		return c.JSON(http.StatusBadRequest, response.UserResponse{Status: http.StatusBadRequest, Message: "error", Data: &echo.Map{"data": validationErr.Error()}})
-	}
-
-	updatedUserName, err := db.UpdateUser(userName, user)
-	if err != nil {
-		return c.JSON(http.StatusInternalServerError, response.UserResponse{Status: http.StatusInternalServerError, Message: "error", Data: &echo.Map{"data": err.Error()}})
-	}
-
-	updatedUser, _ := db.FindUser(updatedUserName)
-
-	return c.JSON(http.StatusOK, response.UserResponse{Status: http.StatusOK, Message: "success", Data: &echo.Map{"data": updatedUser}})
 }
 
 func GetAllUsers(c echo.Context) error {
@@ -83,30 +109,41 @@ func GetAllUsers(c echo.Context) error {
 	return c.JSON(http.StatusOK, response.UserResponse{Status: http.StatusOK, Message: "success", Data: &echo.Map{"data": users}})
 }
 
-func SoftDeleteUser(c echo.Context) error {
-	userName := c.Param("userName")
+func (rt *RootUser) SoftDeleteUser(c echo.Context) error {
+	if rt.GivePerm(c) {
+		userName := c.Param("userName")
 
-	deletedUserName, err := db.SoftDeleteUser(userName)
-	if err != nil {
-		return c.JSON(http.StatusInternalServerError, response.UserResponse{Status: http.StatusInternalServerError, Message: "error", Data: &echo.Map{"data": err.Error()}})
+		deletedUserName, err := db.SoftDeleteUser(userName)
+		if err != nil {
+			return c.JSON(http.StatusInternalServerError, response.UserResponse{Status: http.StatusInternalServerError, Message: "error", Data: &echo.Map{"data": err.Error()}})
+		}
+		updatedUser, _ := db.FindUser(deletedUserName)
+
+		return c.JSON(http.StatusOK, response.UserResponse{Status: http.StatusOK, Message: "success", Data: &echo.Map{"data": updatedUser}})
+
+	} else {
+		return c.JSON(http.StatusLocked, response.UserResponse{Status: http.StatusLocked, Message: "error", Data: &echo.Map{"data": "Only RootUsers can do that"}})
 	}
-	updatedUser, _ := db.FindUser(deletedUserName)
-
-	return c.JSON(http.StatusOK, response.UserResponse{Status: http.StatusOK, Message: "success", Data: &echo.Map{"data": updatedUser}})
 }
 
-func DeleteUser(c echo.Context) error {
-	userName := c.Param("userName")
+func (rt *RootUser) DeleteUser(c echo.Context) error {
 
-	err := db.DeleteUser(userName)
-	if err != nil {
-		return c.JSON(http.StatusInternalServerError, response.UserResponse{Status: http.StatusInternalServerError, Message: "error", Data: &echo.Map{"data": err.Error()}})
+	if rt.GivePerm(c) {
+		userName := c.Param("userName")
+
+		err := db.DeleteUser(userName)
+		if err != nil {
+			return c.JSON(http.StatusInternalServerError, response.UserResponse{Status: http.StatusInternalServerError, Message: "error", Data: &echo.Map{"data": err.Error()}})
+		}
+
+		return c.JSON(http.StatusOK, response.UserResponse{Status: http.StatusOK, Message: "success", Data: &echo.Map{"data": "user successfully deleted"}})
+	} else {
+		return c.JSON(http.StatusLocked, response.UserResponse{Status: http.StatusLocked, Message: "error", Data: &echo.Map{"data": "Only RootUsers can do that"}})
 	}
 
-	return c.JSON(http.StatusOK, response.UserResponse{Status: http.StatusOK, Message: "success", Data: &echo.Map{"data": "user successfully deleted"}})
 }
 
-func isValidCredentials(username, password string) bool {
+func IsValidCredentials(username, password string) bool {
 	if subtle.ConstantTimeCompare([]byte(username), []byte("user")) == 1 &&
 		subtle.ConstantTimeCompare([]byte(password), []byte("password")) == 1 {
 		return true
@@ -114,17 +151,31 @@ func isValidCredentials(username, password string) bool {
 	return false
 }
 
-func ProtectedHandler(c echo.Context) error {
+func (rt *RootUser) GivePerm(c echo.Context) bool {
 
+	rUser := RootUser{}
+
+	ProtectedHandler(c)
+	if c.Response().Status == 200 {
+		rUser.isRootEnabled = true
+		fmt.Println("Success")
+		return rUser.isRootEnabled
+	}
+	rUser.isRootEnabled = false
+	return rUser.isRootEnabled
+}
+
+func ProtectedHandler(c echo.Context) error {
 	username, password, ok := c.Request().BasicAuth()
+
 	if !ok {
 		return c.JSON(http.StatusUnauthorized, response.UserResponse{Status: http.StatusUnauthorized, Message: "error", Data: &echo.Map{"data": "Credentials are not valid"}})
+
 	}
 
-	if !isValidCredentials(username, password) {
+	if !IsValidCredentials(username, password) {
 		return c.JSON(http.StatusUnauthorized, response.UserResponse{Status: http.StatusUnauthorized, Message: "error", Data: &echo.Map{"data": "Credentials are not valid"}})
 	}
-
 	return c.JSON(http.StatusOK, response.UserResponse{Status: http.StatusOK, Message: "success", Data: &echo.Map{"data": "You are in the protected mode"}})
 
 }

@@ -1,13 +1,12 @@
 package main
 
 import (
-	"app3.1/routes"
+	"app3.1/handlers"
 	"github.com/labstack/echo/v4"
 )
 
 func main() {
 	e := echo.New()
-	routes.UserRoute(e)
-
+	handlers.UserRoute(e)
 	e.Logger.Fatal(e.Start(":6000"))
 }
