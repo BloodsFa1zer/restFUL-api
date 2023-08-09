@@ -1,9 +1,9 @@
-.env
+config/.env
 .idea
 .idea/vcs.xml
 idea/modules.xml
 .gitignore
 go.mod
 go.sum
-config.go
-.env.dist
+config/config.go
+config/.env.dist
