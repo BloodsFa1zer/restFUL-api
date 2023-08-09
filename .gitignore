@@ -1,8 +1,0 @@
-config/.env
-.idea
-.idea/vcs.xml
-idea/modules.xml
-go.mod
-go.sum
-config/config.go
-config/.env.dist
