@@ -20,23 +20,23 @@ type User struct {
 	DeletedAt *string `db:"deleted_at" json:"deleted_at,omitempty"`
 }
 
-type Database struct {
+type UserDatabase struct {
 	connection *sql.DB
 }
 
-func NewDatabase() *Database {
+func NewDatabase() *UserDatabase {
 	db, err := sql.Open("sqlite3", "database/test.db")
 	if err != nil {
 		log.Warn().Err(err).Msg(" can`t connect to SQLite")
 		return nil
 	}
-	database := Database{
+	database := UserDatabase{
 		connection: db,
 	}
 	return &database
 }
 
-func (db *Database) FindUser(userName string) (*User, error) {
+func (db *UserDatabase) FindByUserName(userName string) (*User, error) {
 	sqlSelect := `SELECT * FROM User WHERE NickName = ?`
 	var selectedUser User
 	row := db.connection.QueryRow(sqlSelect, userName)
@@ -55,7 +55,7 @@ func (db *Database) FindUser(userName string) (*User, error) {
 	return &selectedUser, nil
 }
 
-func (db *Database) IsUserDeleted(userName string) bool {
+func (db *UserDatabase) IsUserDeleted(userName string) bool {
 	sqlSelect := `SELECT NickName FROM User WHERE NickName = ? AND DeletedAt IS NOT NULL`
 	var checkedUser string
 	row := db.connection.QueryRow(sqlSelect, userName)
@@ -69,7 +69,7 @@ func (db *Database) IsUserDeleted(userName string) bool {
 
 }
 
-func (db *Database) InsertUser(user User) (string, error) {
+func (db *UserDatabase) InsertUser(user User) (string, error) {
 	formattedTime := time.Now().Format("2006.01.02 15:04")
 
 	sqlInsert := "INSERT INTO User (NickName, FirstName, LastName, Password, CreatedAt) VALUES (?, ?, ?, ?, ?)"
@@ -89,7 +89,7 @@ func (db *Database) InsertUser(user User) (string, error) {
 
 }
 
-func (db *Database) UpdateUser(userName string, user User) (string, error) {
+func (db *UserDatabase) UpdateUser(userName string, user User) (string, error) {
 
 	hashedPassword, err := config.Hash(user.Password)
 	if err != nil {
@@ -108,7 +108,7 @@ func (db *Database) UpdateUser(userName string, user User) (string, error) {
 
 }
 
-func (db *Database) FindUsers() (*[]User, error) {
+func (db *UserDatabase) FindUsers() (*[]User, error) {
 	sqlSelect := "SELECT * FROM User"
 	rows, err := db.connection.Query(sqlSelect)
 	if err != nil {
@@ -132,7 +132,7 @@ func (db *Database) FindUsers() (*[]User, error) {
 	return &users, nil
 }
 
-func (db *Database) SoftDeleteUser(userName string) (string, error) {
+func (db *UserDatabase) SoftDelete(userName string) (string, error) {
 	formattedTime := time.Now().Format("2006.01.02 15:04")
 	sqlSoftDelete := "UPDATE User SET (DeletedAt) = (?) WHERE NickName = ?"
 
@@ -145,7 +145,7 @@ func (db *Database) SoftDeleteUser(userName string) (string, error) {
 	return userName, nil
 }
 
-func (db *Database) DeleteUser(userName string) error {
+func (db *UserDatabase) DeleteUserByNick(userName string) error {
 	sqlDelete := "DELETE FROM User WHERE NickName = ?"
 
 	_, err := db.connection.Exec(sqlDelete, userName)

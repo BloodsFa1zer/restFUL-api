@@ -5,13 +5,12 @@ import (
 	"app3.1/response"
 	"crypto/subtle"
 	"errors"
-	"fmt"
 	"github.com/go-playground/validator/v10"
 	"github.com/labstack/echo/v4"
 	"net/http"
 )
 
-type dbInterface interface {
+type UserHandlersInterface interface {
 	EditUser(c echo.Context) error
 	SoftDeleteUser(c echo.Context) error
 	DeleteUser(c echo.Context) error
@@ -19,20 +18,17 @@ type dbInterface interface {
 	GetUser(c echo.Context) error
 	GetAllUsers(c echo.Context) error
 	ProtectedHandler(c echo.Context) error
+	database.UserDatabase
 }
 
-var rootUser = &UserHandler{}
-
-var db = database.NewDatabase()
-var validate = validator.New()
-
 type UserHandler struct {
-	dbUser        dbInterface
+	validate *validator.Validate
+	*database.UserDatabase
 	isRootEnabled bool
 }
 
-func NewUserHandler(dbUser dbInterface, isRootEnabled bool) *UserHandler {
-	return &UserHandler{dbUser: dbUser, isRootEnabled: isRootEnabled}
+func NewUserHandler(isRootEnabled bool) *UserHandler {
+	return &UserHandler{validate: validator.New(), UserDatabase: database.NewDatabase(), isRootEnabled: isRootEnabled}
 }
 
 func (rt *UserHandler) CreateUser(c echo.Context) error {
@@ -42,7 +38,7 @@ func (rt *UserHandler) CreateUser(c echo.Context) error {
 		return c.JSON(http.StatusBadRequest, response.UserResponse{Status: http.StatusBadRequest, Message: "error", Data: &echo.Map{"data": err.Error()}})
 	}
 
-	if validationErr := validate.Struct(&user); validationErr != nil {
+	if validationErr := rt.validate.Struct(&user); validationErr != nil {
 		return c.JSON(http.StatusBadRequest, response.UserResponse{Status: http.StatusBadRequest, Message: "error", Data: &echo.Map{"data": validationErr.Error()}})
 	}
 
@@ -53,7 +49,7 @@ func (rt *UserHandler) CreateUser(c echo.Context) error {
 		Password:  user.Password,
 	}
 
-	result, err := db.InsertUser(newUser)
+	result, err := rt.InsertUser(newUser)
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, response.UserResponse{Status: http.StatusInternalServerError, Message: "error", Data: &echo.Map{"data": err.Error()}})
 	}
@@ -64,7 +60,7 @@ func (rt *UserHandler) CreateUser(c echo.Context) error {
 func (rt *UserHandler) GetUser(c echo.Context) error {
 	userName := c.Param("userName")
 
-	user, err := db.FindUser(userName)
+	user, err := rt.FindByUserName(userName)
 	if err == errors.New("user not found") {
 		return c.JSON(http.StatusNotFound, response.UserResponse{Status: http.StatusNotFound, Message: "error", Data: &echo.Map{"data": err.Error()}})
 	} else if err != nil {
@@ -77,23 +73,23 @@ func (rt *UserHandler) GetUser(c echo.Context) error {
 func (rt *UserHandler) EditUser(c echo.Context) error {
 	if rt.GivePerm(c) {
 		userName := c.Param("userName")
-		if db.IsUserDeleted(userName) == true {
+		if rt.IsUserDeleted(userName) == true {
 			var user database.User
 
 			if err := c.Bind(&user); err != nil {
 				return c.JSON(http.StatusBadRequest, response.UserResponse{Status: http.StatusBadRequest, Message: "error", Data: &echo.Map{"data": err.Error()}})
 			}
 
-			if validationErr := validate.Struct(&user); validationErr != nil {
+			if validationErr := rt.validate.Struct(&user); validationErr != nil {
 				return c.JSON(http.StatusBadRequest, response.UserResponse{Status: http.StatusBadRequest, Message: "error", Data: &echo.Map{"data": validationErr.Error()}})
 			}
 
-			updatedUserName, err := db.UpdateUser(userName, user)
+			updatedUserName, err := rt.UpdateUser(userName, user)
 			if err != nil {
 				return c.JSON(http.StatusInternalServerError, response.UserResponse{Status: http.StatusInternalServerError, Message: "error", Data: &echo.Map{"data": err.Error()}})
 			}
 
-			updatedUser, _ := db.FindUser(updatedUserName)
+			updatedUser, _ := rt.FindByUserName(updatedUserName)
 
 			return c.JSON(http.StatusOK, response.UserResponse{Status: http.StatusOK, Message: "success", Data: &echo.Map{"data": updatedUser}})
 		} else {
@@ -105,7 +101,7 @@ func (rt *UserHandler) EditUser(c echo.Context) error {
 }
 
 func (rt *UserHandler) GetAllUsers(c echo.Context) error {
-	users, err := db.FindUsers()
+	users, err := rt.FindUsers()
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, response.UserResponse{Status: http.StatusInternalServerError, Message: "error", Data: &echo.Map{"data": err.Error()}})
 	}
@@ -116,12 +112,12 @@ func (rt *UserHandler) GetAllUsers(c echo.Context) error {
 func (rt *UserHandler) SoftDeleteUser(c echo.Context) error {
 	if rt.GivePerm(c) {
 		userName := c.Param("userName")
-		if db.IsUserDeleted(userName) == true {
-			deletedUserName, err := db.SoftDeleteUser(userName)
+		if rt.IsUserDeleted(userName) == true {
+			deletedUserName, err := rt.SoftDelete(userName)
 			if err != nil {
 				return c.JSON(http.StatusInternalServerError, response.UserResponse{Status: http.StatusInternalServerError, Message: "error", Data: &echo.Map{"data": err.Error()}})
 			}
-			updatedUser, _ := db.FindUser(deletedUserName)
+			updatedUser, _ := rt.FindByUserName(deletedUserName)
 
 			return c.JSON(http.StatusOK, response.UserResponse{Status: http.StatusOK, Message: "success", Data: &echo.Map{"data": updatedUser}})
 		} else {
@@ -135,8 +131,8 @@ func (rt *UserHandler) SoftDeleteUser(c echo.Context) error {
 func (rt *UserHandler) DeleteUser(c echo.Context) error {
 	if rt.GivePerm(c) {
 		userName := c.Param("userName")
-		if db.IsUserDeleted(userName) == true {
-			err := db.DeleteUser(userName)
+		if rt.IsUserDeleted(userName) == true {
+			err := rt.DeleteUserByNick(userName)
 			if err != nil {
 				return c.JSON(http.StatusInternalServerError, response.UserResponse{Status: http.StatusInternalServerError, Message: "error", Data: &echo.Map{"data": err.Error()}})
 			}
@@ -166,7 +162,6 @@ func (rt *UserHandler) GivePerm(c echo.Context) bool {
 	rt.ProtectedHandler(c)
 	if c.Response().Status == 200 {
 		rUser.isRootEnabled = true
-		fmt.Println("Success")
 		return rUser.isRootEnabled
 	}
 	rUser.isRootEnabled = false
