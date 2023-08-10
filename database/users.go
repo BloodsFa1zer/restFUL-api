@@ -4,6 +4,7 @@ import (
 	"app3.1/config"
 	"database/sql"
 	"errors"
+	_ "github.com/mattn/go-sqlite3"
 	"github.com/rs/zerolog/log"
 	"time"
 )
@@ -17,6 +18,22 @@ type User struct {
 	CreatedAt string  `db:"created_at" json:"created_at"`
 	UpdatedAt *string `db:"updated_at" json:"updated_at,omitempty"`
 	DeletedAt *string `db:"deleted_at" json:"deleted_at,omitempty"`
+}
+
+type Database struct {
+	connection *sql.DB
+}
+
+func NewDatabase() *Database {
+	db, err := sql.Open("sqlite3", "database/test.db")
+	if err != nil {
+		log.Warn().Err(err).Msg(" can`t connect to SQLite")
+		return nil
+	}
+	database := Database{
+		connection: db,
+	}
+	return &database
 }
 
 func (db *Database) FindUser(userName string) (*User, error) {

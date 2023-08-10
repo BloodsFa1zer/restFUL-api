@@ -11,30 +11,31 @@ import (
 	"net/http"
 )
 
-type UserActions interface {
+type dbInterface interface {
 	EditUser(c echo.Context) error
 	SoftDeleteUser(c echo.Context) error
 	DeleteUser(c echo.Context) error
+	CreateUser(c echo.Context) error
+	GetUser(c echo.Context) error
+	GetAllUsers(c echo.Context) error
+	ProtectedHandler(c echo.Context) error
 }
 
-var RT = RootUser{}
+var rootUser = &UserHandler{}
 
-type RootUser struct {
-	isRootEnabled bool
-}
-
-var db = database.Connection()
+var db = database.NewDatabase()
 var validate = validator.New()
 
 type UserHandler struct {
-	dbUser UserActions
+	dbUser        dbInterface
+	isRootEnabled bool
 }
 
-func NewUserHandler(User UserActions) *UserHandler {
-	return &UserHandler{dbUser: User}
+func NewUserHandler(dbUser dbInterface, isRootEnabled bool) *UserHandler {
+	return &UserHandler{dbUser: dbUser, isRootEnabled: isRootEnabled}
 }
 
-func CreateUser(c echo.Context) error {
+func (rt *UserHandler) CreateUser(c echo.Context) error {
 	var user database.User
 
 	if err := c.Bind(&user); err != nil {
@@ -60,7 +61,7 @@ func CreateUser(c echo.Context) error {
 	return c.JSON(http.StatusCreated, response.UserResponse{Status: http.StatusCreated, Message: "success", Data: &echo.Map{"data to interact with profile": result}})
 }
 
-func GetUser(c echo.Context) error {
+func (rt *UserHandler) GetUser(c echo.Context) error {
 	userName := c.Param("userName")
 
 	user, err := db.FindUser(userName)
@@ -73,8 +74,7 @@ func GetUser(c echo.Context) error {
 	return c.JSON(http.StatusOK, response.UserResponse{Status: http.StatusOK, Message: "success", Data: &echo.Map{"data": user}})
 }
 
-func (rt *RootUser) EditUser(c echo.Context) error {
-
+func (rt *UserHandler) EditUser(c echo.Context) error {
 	if rt.GivePerm(c) {
 		userName := c.Param("userName")
 		if db.IsUserDeleted(userName) == true {
@@ -104,7 +104,7 @@ func (rt *RootUser) EditUser(c echo.Context) error {
 	}
 }
 
-func GetAllUsers(c echo.Context) error {
+func (rt *UserHandler) GetAllUsers(c echo.Context) error {
 	users, err := db.FindUsers()
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, response.UserResponse{Status: http.StatusInternalServerError, Message: "error", Data: &echo.Map{"data": err.Error()}})
@@ -113,7 +113,7 @@ func GetAllUsers(c echo.Context) error {
 	return c.JSON(http.StatusOK, response.UserResponse{Status: http.StatusOK, Message: "success", Data: &echo.Map{"data": users}})
 }
 
-func (rt *RootUser) SoftDeleteUser(c echo.Context) error {
+func (rt *UserHandler) SoftDeleteUser(c echo.Context) error {
 	if rt.GivePerm(c) {
 		userName := c.Param("userName")
 		if db.IsUserDeleted(userName) == true {
@@ -132,8 +132,7 @@ func (rt *RootUser) SoftDeleteUser(c echo.Context) error {
 	}
 }
 
-func (rt *RootUser) DeleteUser(c echo.Context) error {
-
+func (rt *UserHandler) DeleteUser(c echo.Context) error {
 	if rt.GivePerm(c) {
 		userName := c.Param("userName")
 		if db.IsUserDeleted(userName) == true {
@@ -161,11 +160,10 @@ func IsValidCredentials(username, password string) bool {
 	return false
 }
 
-func (rt *RootUser) GivePerm(c echo.Context) bool {
+func (rt *UserHandler) GivePerm(c echo.Context) bool {
+	rUser := UserHandler{}
 
-	rUser := RootUser{}
-
-	ProtectedHandler(c)
+	rt.ProtectedHandler(c)
 	if c.Response().Status == 200 {
 		rUser.isRootEnabled = true
 		fmt.Println("Success")
@@ -175,7 +173,7 @@ func (rt *RootUser) GivePerm(c echo.Context) bool {
 	return rUser.isRootEnabled
 }
 
-func ProtectedHandler(c echo.Context) error {
+func (rt *UserHandler) ProtectedHandler(c echo.Context) error {
 	username, password, ok := c.Request().BasicAuth()
 
 	if !ok {
