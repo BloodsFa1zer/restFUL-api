@@ -20,26 +20,34 @@ type User struct {
 	DeletedAt *string `db:"deleted_at" json:"deleted_at,omitempty"`
 }
 
-type UserDatabase struct {
-	connection *sql.DB
+type DbInterface interface {
+	FindByUserName(userName string) (*User, error)
+	IsUserDeleted(userName string) bool
+	InsertUser(user User) (string, error)
+	UpdateUser(userName string, user User) (string, error)
+	FindUsers() (*[]User, error)
+	DeleteUserByNick(userName string) (string, error)
 }
 
-func NewDatabase() *UserDatabase {
+type UserDatabase struct {
+	Connection *sql.DB
+}
+
+func NewDatabase() *sql.DB {
 	db, err := sql.Open("sqlite3", "database/test.db")
 	if err != nil {
 		log.Warn().Err(err).Msg(" can`t connect to SQLite")
 		return nil
 	}
-	database := UserDatabase{
-		connection: db,
-	}
-	return &database
+
+	return db
 }
 
 func (db *UserDatabase) FindByUserName(userName string) (*User, error) {
 	sqlSelect := `SELECT * FROM User WHERE NickName = ?`
 	var selectedUser User
-	row := db.connection.QueryRow(sqlSelect, userName)
+
+	row := db.Connection.QueryRow(sqlSelect, userName)
 	err := row.Scan(&selectedUser.ID, &selectedUser.Nickname, &selectedUser.FirstName,
 		&selectedUser.LastName, &selectedUser.Password, &selectedUser.CreatedAt,
 		&selectedUser.UpdatedAt, &selectedUser.DeletedAt)
@@ -58,7 +66,7 @@ func (db *UserDatabase) FindByUserName(userName string) (*User, error) {
 func (db *UserDatabase) IsUserDeleted(userName string) bool {
 	sqlSelect := `SELECT NickName FROM User WHERE NickName = ? AND DeletedAt IS NOT NULL`
 	var checkedUser string
-	row := db.connection.QueryRow(sqlSelect, userName)
+	row := db.Connection.QueryRow(sqlSelect, userName)
 	err := row.Scan(&checkedUser)
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -79,7 +87,7 @@ func (db *UserDatabase) InsertUser(user User) (string, error) {
 		log.Warn().Err(err).Msg(" can`t hashed user`s password")
 	}
 
-	_, err = db.connection.Exec(sqlInsert, user.Nickname, user.FirstName, user.LastName, hashedPassword, formattedTime)
+	_, err = db.Connection.Exec(sqlInsert, user.Nickname, user.FirstName, user.LastName, hashedPassword, formattedTime)
 	if err != nil {
 		log.Warn().Err(err).Msg(" can`t insert user")
 		return "", err
@@ -98,7 +106,7 @@ func (db *UserDatabase) UpdateUser(userName string, user User) (string, error) {
 	formattedTime := time.Now().Format("2006.01.02 15:04")
 	sqlUpdate := "UPDATE User SET NickName = ?, FirstName = ?, LastName = ?, Password = ?, UpdatedAt = ? WHERE Nickname = ?"
 
-	_, err = db.connection.Exec(sqlUpdate, user.Nickname, user.FirstName, user.LastName, hashedPassword, formattedTime, userName)
+	_, err = db.Connection.Exec(sqlUpdate, user.Nickname, user.FirstName, user.LastName, hashedPassword, formattedTime, userName)
 	if err != nil {
 		log.Warn().Err(err).Msg(" can`t update user`s data")
 		return "", err
@@ -110,7 +118,7 @@ func (db *UserDatabase) UpdateUser(userName string, user User) (string, error) {
 
 func (db *UserDatabase) FindUsers() (*[]User, error) {
 	sqlSelect := "SELECT * FROM User"
-	rows, err := db.connection.Query(sqlSelect)
+	rows, err := db.Connection.Query(sqlSelect)
 	if err != nil {
 		log.Warn().Err(err).Msg(" can`t find users")
 	}
@@ -132,26 +140,15 @@ func (db *UserDatabase) FindUsers() (*[]User, error) {
 	return &users, nil
 }
 
-func (db *UserDatabase) SoftDelete(userName string) (string, error) {
+func (db *UserDatabase) DeleteUserByNick(userName string) (string, error) {
 	formattedTime := time.Now().Format("2006.01.02 15:04")
 	sqlSoftDelete := "UPDATE User SET (DeletedAt) = (?) WHERE NickName = ?"
 
-	_, err := db.connection.Exec(sqlSoftDelete, formattedTime, userName)
+	_, err := db.Connection.Exec(sqlSoftDelete, formattedTime, userName)
 	if err != nil {
 		log.Warn().Err(err).Msg(" can`t delete user`s data")
 		return "", err
 	}
 
 	return userName, nil
-}
-
-func (db *UserDatabase) DeleteUserByNick(userName string) error {
-	sqlDelete := "DELETE FROM User WHERE NickName = ?"
-
-	_, err := db.connection.Exec(sqlDelete, userName)
-	if err != nil {
-		log.Warn().Err(err).Msg(" can`t delete user`s data")
-		return err
-	}
-	return nil
 }
