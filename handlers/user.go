@@ -18,7 +18,6 @@ type UserHandlersInterface interface {
 	GetUser(c echo.Context) error
 	GetAllUsers(c echo.Context) error
 	ProtectedHandler(c echo.Context) error
-	database.UserDatabase
 }
 
 type UserHandler struct {
