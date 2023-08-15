@@ -1,7 +1,7 @@
 package database
 
 import (
-	"app3.1/config"
+	"app3.1/hash"
 	"database/sql"
 	"errors"
 	_ "github.com/mattn/go-sqlite3"
