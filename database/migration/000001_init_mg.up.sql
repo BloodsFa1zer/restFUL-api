@@ -1,0 +1,2 @@
+ALTER TABLE
+ADD COLUMN email INT;
