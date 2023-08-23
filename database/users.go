@@ -21,12 +21,12 @@ type User struct {
 }
 
 type DbInterface interface {
-	FindByUserName(userName string) (*User, error)
-	IsUserDeleted(userName string) bool
+	FindByID(ID int) (*User, error)
+	IsUserDeleted(ID int) bool
 	InsertUser(user User) (string, error)
-	UpdateUser(userName string, user User) (string, error)
+	UpdateUser(ID int, user User) (int, error)
 	FindUsers() (*[]User, error)
-	DeleteUserByNick(userName string) (string, error)
+	DeleteUserByID(ID int) (int, error)
 }
 
 type UserDatabase struct {
@@ -34,6 +34,7 @@ type UserDatabase struct {
 }
 
 func NewDatabase() *sql.DB {
+
 	db, err := sql.Open("sqlite3", "database/test.db")
 	if err != nil {
 		log.Warn().Err(err).Msg(" can`t connect to SQLite")
@@ -43,11 +44,11 @@ func NewDatabase() *sql.DB {
 	return db
 }
 
-func (db *UserDatabase) FindByUserName(userName string) (*User, error) {
-	sqlSelect := `SELECT * FROM User WHERE NickName = ?`
+func (db *UserDatabase) FindByID(ID int) (*User, error) {
+	sqlSelect := `SELECT * FROM User WHERE ID = ?`
 	var selectedUser User
 
-	row := db.Connection.QueryRow(sqlSelect, userName)
+	row := db.Connection.QueryRow(sqlSelect, ID)
 	err := row.Scan(&selectedUser.ID, &selectedUser.Nickname, &selectedUser.FirstName,
 		&selectedUser.LastName, &selectedUser.Password, &selectedUser.CreatedAt,
 		&selectedUser.UpdatedAt, &selectedUser.DeletedAt)
@@ -63,10 +64,10 @@ func (db *UserDatabase) FindByUserName(userName string) (*User, error) {
 	return &selectedUser, nil
 }
 
-func (db *UserDatabase) IsUserDeleted(userName string) bool {
-	sqlSelect := `SELECT NickName FROM User WHERE NickName = ? AND DeletedAt IS NOT NULL`
+func (db *UserDatabase) IsUserDeleted(ID int) bool {
+	sqlSelect := `SELECT NickName FROM User WHERE ID = ? AND DeletedAt IS NOT NULL`
 	var checkedUser string
-	row := db.Connection.QueryRow(sqlSelect, userName)
+	row := db.Connection.QueryRow(sqlSelect, ID)
 	err := row.Scan(&checkedUser)
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -97,22 +98,22 @@ func (db *UserDatabase) InsertUser(user User) (string, error) {
 
 }
 
-func (db *UserDatabase) UpdateUser(userName string, user User) (string, error) {
+func (db *UserDatabase) UpdateUser(ID int, user User) (int, error) {
 
 	hashedPassword, err := config.Hash(user.Password)
 	if err != nil {
 		log.Warn().Err(err).Msg(" can`t hashed user`s password")
 	}
 	formattedTime := time.Now().Format("2006.01.02 15:04")
-	sqlUpdate := "UPDATE User SET NickName = ?, FirstName = ?, LastName = ?, Password = ?, UpdatedAt = ? WHERE Nickname = ?"
+	sqlUpdate := "UPDATE User SET NickName = ?, FirstName = ?, LastName = ?, Password = ?, UpdatedAt = ? WHERE ID = ?"
 
-	_, err = db.Connection.Exec(sqlUpdate, user.Nickname, user.FirstName, user.LastName, hashedPassword, formattedTime, userName)
+	_, err = db.Connection.Exec(sqlUpdate, user.Nickname, user.FirstName, user.LastName, hashedPassword, formattedTime, ID)
 	if err != nil {
 		log.Warn().Err(err).Msg(" can`t update user`s data")
-		return "", err
+		return 0, err
 	}
 
-	return user.Nickname, nil
+	return ID, nil
 
 }
 
@@ -140,15 +141,15 @@ func (db *UserDatabase) FindUsers() (*[]User, error) {
 	return &users, nil
 }
 
-func (db *UserDatabase) DeleteUserByNick(userName string) (string, error) {
+func (db *UserDatabase) DeleteUserByID(ID int) (int, error) {
 	formattedTime := time.Now().Format("2006.01.02 15:04")
-	sqlSoftDelete := "UPDATE User SET (DeletedAt) = (?) WHERE NickName = ?"
+	sqlSoftDelete := "UPDATE User SET (DeletedAt) = (?) WHERE ID = ?"
 
-	_, err := db.Connection.Exec(sqlSoftDelete, formattedTime, userName)
+	_, err := db.Connection.Exec(sqlSoftDelete, formattedTime, ID)
 	if err != nil {
 		log.Warn().Err(err).Msg(" can`t delete user`s data")
-		return "", err
+		return 0, err
 	}
 
-	return userName, nil
+	return ID, nil
 }

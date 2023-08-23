@@ -8,16 +8,16 @@ import (
 	"github.com/go-playground/validator/v10"
 	"github.com/labstack/echo/v4"
 	"net/http"
+	"strconv"
 )
 
 type UserHandlersInterface interface {
 	EditUser(c echo.Context) error
 	DeleteUser(c echo.Context) error
-
 	CreateUser(c echo.Context) error
 	GetUser(c echo.Context) error
 	GetAllUsers(c echo.Context) error
-	ProtectedHandler(c echo.Context) error
+	EnterRootMode(c echo.Context) error
 }
 
 var validate = validator.New()
@@ -32,7 +32,7 @@ func NewUserHandler(dbUser database.DbInterface, isRootEnabled bool) *UserHandle
 
 }
 
-func (rt *UserHandler) CreateUser(c echo.Context) error {
+func (uh *UserHandler) CreateUser(c echo.Context) error {
 	var user database.User
 
 	if err := c.Bind(&user); err != nil {
@@ -50,7 +50,7 @@ func (rt *UserHandler) CreateUser(c echo.Context) error {
 		Password:  user.Password,
 	}
 
-	result, err := rt.DbUser.InsertUser(newUser)
+	result, err := uh.DbUser.InsertUser(newUser)
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, response.UserResponse{Status: http.StatusInternalServerError, Message: "error", Data: &echo.Map{"data": err.Error()}})
 	}
@@ -58,10 +58,14 @@ func (rt *UserHandler) CreateUser(c echo.Context) error {
 	return c.JSON(http.StatusCreated, response.UserResponse{Status: http.StatusCreated, Message: "success", Data: &echo.Map{"data to interact with profile": result}})
 }
 
-func (rt *UserHandler) GetUser(c echo.Context) error {
-	userName := c.Param("userName")
+func (uh *UserHandler) GetUser(c echo.Context) error {
+	ID := c.Param("id")
+	input, err := strconv.Atoi(ID)
+	if err != nil {
+		return c.JSON(http.StatusNotFound, response.UserResponse{Status: http.StatusNotFound, Message: "error", Data: &echo.Map{"data": err.Error()}})
+	}
 
-	user, err := rt.DbUser.FindByUserName(userName)
+	user, err := uh.DbUser.FindByID(input)
 	if err == errors.New("user not found") {
 		return c.JSON(http.StatusNotFound, response.UserResponse{Status: http.StatusNotFound, Message: "error", Data: &echo.Map{"data": err.Error()}})
 	} else if err != nil {
@@ -71,10 +75,15 @@ func (rt *UserHandler) GetUser(c echo.Context) error {
 	return c.JSON(http.StatusOK, response.UserResponse{Status: http.StatusOK, Message: "success", Data: &echo.Map{"data": user}})
 }
 
-func (rt *UserHandler) EditUser(c echo.Context) error {
-	if rt.GivePerm(c) {
-		userName := c.Param("userName")
-		if rt.DbUser.IsUserDeleted(userName) == true {
+func (uh *UserHandler) EditUser(c echo.Context) error {
+	if uh.GivePerm(c) {
+		ID := c.Param("id")
+		input, err := strconv.Atoi(ID)
+		if err != nil {
+			return c.JSON(http.StatusNotFound, response.UserResponse{Status: http.StatusNotFound, Message: "error", Data: &echo.Map{"data": err.Error()}})
+		}
+
+		if uh.DbUser.IsUserDeleted(input) == true {
 			var user database.User
 
 			if err := c.Bind(&user); err != nil {
@@ -85,12 +94,12 @@ func (rt *UserHandler) EditUser(c echo.Context) error {
 				return c.JSON(http.StatusBadRequest, response.UserResponse{Status: http.StatusBadRequest, Message: "error", Data: &echo.Map{"data": validationErr.Error()}})
 			}
 
-			updatedUserName, err := rt.DbUser.UpdateUser(userName, user)
+			updatedUserID, err := uh.DbUser.UpdateUser(input, user)
 			if err != nil {
 				return c.JSON(http.StatusInternalServerError, response.UserResponse{Status: http.StatusInternalServerError, Message: "error", Data: &echo.Map{"data": err.Error()}})
 			}
 
-			updatedUser, err := rt.DbUser.FindByUserName(updatedUserName)
+			updatedUser, err := uh.DbUser.FindByID(updatedUserID)
 			if err != nil {
 				return c.JSON(http.StatusInternalServerError, response.UserResponse{Status: http.StatusInternalServerError, Message: "error", Data: &echo.Map{"data": err.Error()}})
 			}
@@ -104,8 +113,8 @@ func (rt *UserHandler) EditUser(c echo.Context) error {
 	}
 }
 
-func (rt *UserHandler) GetAllUsers(c echo.Context) error {
-	users, err := rt.DbUser.FindUsers()
+func (uh *UserHandler) GetAllUsers(c echo.Context) error {
+	users, err := uh.DbUser.FindUsers()
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, response.UserResponse{Status: http.StatusInternalServerError, Message: "error", Data: &echo.Map{"data": err.Error()}})
 	}
@@ -113,15 +122,20 @@ func (rt *UserHandler) GetAllUsers(c echo.Context) error {
 	return c.JSON(http.StatusOK, response.UserResponse{Status: http.StatusOK, Message: "success", Data: &echo.Map{"data": users}})
 }
 
-func (rt *UserHandler) DeleteUser(c echo.Context) error {
-	if rt.GivePerm(c) {
-		userName := c.Param("userName")
-		if rt.DbUser.IsUserDeleted(userName) == true {
-			deletedUserName, err := rt.DbUser.DeleteUserByNick(userName)
+func (uh *UserHandler) DeleteUser(c echo.Context) error {
+	if uh.GivePerm(c) {
+		ID := c.Param("id")
+		input, err := strconv.Atoi(ID)
+		if err != nil {
+			return c.JSON(http.StatusNotFound, response.UserResponse{Status: http.StatusNotFound, Message: "error", Data: &echo.Map{"data": err.Error()}})
+		}
+
+		if uh.DbUser.IsUserDeleted(input) == true {
+			deletedUserName, err := uh.DbUser.DeleteUserByID(input)
 			if err != nil {
 				return c.JSON(http.StatusInternalServerError, response.UserResponse{Status: http.StatusInternalServerError, Message: "error", Data: &echo.Map{"data": err.Error()}})
 			}
-			updatedUser, _ := rt.DbUser.FindByUserName(deletedUserName)
+			updatedUser, _ := uh.DbUser.FindByID(deletedUserName)
 
 			return c.JSON(http.StatusOK, response.UserResponse{Status: http.StatusOK, Message: "success", Data: &echo.Map{"data": updatedUser}})
 		} else {
@@ -140,10 +154,10 @@ func IsValidCredentials(username, password string) bool {
 	return false
 }
 
-func (rt *UserHandler) GivePerm(c echo.Context) bool {
+func (uh *UserHandler) GivePerm(c echo.Context) bool {
 	rUser := UserHandler{}
 
-	err := rt.ProtectedHandler(c)
+	err := uh.EnterRootMode(c)
 	if err != nil {
 		rUser.isRootEnabled = true
 		return rUser.isRootEnabled
@@ -157,7 +171,7 @@ func (rt *UserHandler) GivePerm(c echo.Context) bool {
 	return rUser.isRootEnabled
 }
 
-func (rt *UserHandler) ProtectedHandler(c echo.Context) error {
+func (uh *UserHandler) EnterRootMode(c echo.Context) error {
 	username, password, ok := c.Request().BasicAuth()
 
 	if !ok {

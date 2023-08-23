@@ -1,2 +1,5 @@
-ALTER TABLE User
-ADD COLUMN age INT;
+
+INSERT INTO books (id) VALUES
+    (1),
+    (2),
+    (3);

@@ -1,2 +1,2 @@
-hash/.env
+config/.env
 hash/config.go
