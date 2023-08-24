@@ -1,1 +1,1 @@
-DELETE FROM books WHERE id IS NOT NULL
+drop table Users
