@@ -82,7 +82,6 @@ func (db *UserDatabase) IsUserDeleted(ID int64) bool {
 			return true
 		} else {
 			return true
-			log.Fatal().Err(err)
 		}
 	} else {
 		if isDeleted == 0 {

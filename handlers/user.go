@@ -23,12 +23,11 @@ type UserHandlersInterface interface {
 var validate = validator.New()
 
 type UserHandler struct {
-	DbUser        database.DbInterface
-	isRootEnabled bool
+	DbUser database.DbInterface
 }
 
-func NewUserHandler(dbUser database.DbInterface, isRootEnabled bool) *UserHandler {
-	return &UserHandler{DbUser: dbUser, isRootEnabled: isRootEnabled}
+func NewUserHandler(dbUser database.DbInterface) *UserHandler {
+	return &UserHandler{DbUser: dbUser}
 }
 
 func (uh *UserHandler) CreateUser(c echo.Context) error {

@@ -7,7 +7,7 @@ import (
 	"github.com/labstack/echo/v4/middleware"
 )
 
-var userHandler = handlers.NewUserHandler(database.NewUserDatabase(), false)
+var userHandler = handlers.NewUserHandler(database.NewUserDatabase())
 
 func UserRoute(e *echo.Echo) {
 	e.POST("/user", userHandler.CreateUser)
