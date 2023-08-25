@@ -7,9 +7,8 @@ import (
 )
 
 type Config struct {
-	URI_BD string `env:"URI_MongoDB"`
-	DBName string `env:"DatabaseName"`
-	DBPath string `env:"DatabasePath"`
+	DbName string `env:"DatabaseName"`
+	DbPath string `env:"DatabasePath"`
 }
 
 func LoadENV(filename string) *Config {
@@ -30,19 +29,4 @@ func (cfg *Config) ParseENV() {
 		log.Panic().Err(err).Msg(" unable to parse environment variables")
 	}
 	log.Info().Msg("successfully parsed .env")
-}
-
-func (cfg *Config) MongoENV() string {
-	cfg.ParseENV()
-	return cfg.URI_BD
-}
-
-func (cfg *Config) DBNameENV() string {
-	cfg.ParseENV()
-	return cfg.DBName
-}
-
-func (cfg *Config) DBPathENV() string {
-	cfg.ParseENV()
-	return cfg.DBPath
 }

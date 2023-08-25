@@ -12,22 +12,22 @@ import (
 
 type User struct {
 	ID        int64   `db:"ID" json:"ID"`
-	Nickname  string  `db:"NickName" json:"Nickname" validate:"required"`
-	FirstName string  `db:"FirstName" json:"FirstName" validate:"required"`
-	LastName  string  `db:"LastName" json:"LastName" validate:"required"`
-	Password  string  `db:"Password" json:"Password" validate:"required"`
+	Nickname  string  `db:"nick_name" json:"Nickname" validate:"required"`
+	FirstName string  `db:"first_name" json:"FirstName" validate:"required"`
+	LastName  string  `db:"last_name" json:"LastName" validate:"required"`
+	Password  string  `db:"password" json:"Password" validate:"required"`
 	CreatedAt string  `db:"created_at" json:"created_at"`
 	UpdatedAt *string `db:"updated_at" json:"updated_at,omitempty"`
 	DeletedAt *string `db:"deleted_at" json:"deleted_at,omitempty"`
 }
 
 type DbInterface interface {
-	FindByID(ID int) (*User, error)
+	FindByID(ID int64) (*User, error)
 	IsUserDeleted(ID int64) bool
-	InsertUser(user User) error
-	UpdateUser(ID int, user User) (int, error)
+	InsertUser(user User) (int64, error)
+	UpdateUser(ID int64, user User) (int64, error)
 	FindUsers() (*[]User, error)
-	DeleteUserByID(ID int) (int, error)
+	DeleteUserByID(ID int64) error
 }
 
 type UserDatabase struct {
@@ -35,24 +35,20 @@ type UserDatabase struct {
 }
 
 func NewUserDatabase() *UserDatabase {
-	return &UserDatabase{Connection: NewDatabase()}
-}
-
-func NewDatabase() *sql.DB {
 	cfg := config.LoadENV("config/.env")
 	cfg.ParseENV()
 
-	db, err := sql.Open(cfg.DBName, cfg.DBPath)
+	db, err := sql.Open(cfg.DbName, cfg.DbPath)
 	if err != nil {
 		log.Warn().Err(err).Msg(" can`t connect to SQLite")
 		return nil
 	}
 	log.Info().Msg("successfully connected to SQLite")
 
-	return db
+	return &UserDatabase{Connection: db}
 }
 
-func (db *UserDatabase) FindByID(ID int) (*User, error) {
+func (db *UserDatabase) FindByID(ID int64) (*User, error) {
 	sqlSelect := `SELECT * FROM Users WHERE ID = ?`
 	var selectedUser User
 
@@ -73,47 +69,69 @@ func (db *UserDatabase) FindByID(ID int) (*User, error) {
 }
 
 func (db *UserDatabase) IsUserDeleted(ID int64) bool {
-	sqlSelect := `SELECT CASE WHEN Users.deleted_at IS NOT NULL THEN 0 ELSE 1 END FROM Users WHERE ID = ?`
-	row := db.Connection.QueryRow(sqlSelect, ID)
-	var isDeleted int
+	//sqlSelect := `SELECT CASE WHEN Users.deleted_at IS NOT NULL THEN 0 ELSE 1 END FROM Users WHERE ID = ?`
+	//row := db.Connection.QueryRow(sqlSelect, ID)
+	//var isDeleted int
+	//
+	//if err := row.Scan(&isDeleted); err != nil {
+	//	if err == sql.ErrNoRows {
+	//		return true
+	//	} else {
+	//		return true
+	//	}
+	//} else {
+	//	if isDeleted == 0 {
+	//		// not detected
+	//		return true
+	//	}
+	//}
+	//// detected
+	//return false
 
-	if err := row.Scan(&isDeleted); err != nil {
-		if err == sql.ErrNoRows {
-			return true
-		} else {
-			return true
-		}
-	} else {
-		if isDeleted == 0 {
-			// not detected
-			return true
-		}
+	sqlSelect := `select ID from Users where ID = ? and deleted_at != 'Unknown'`
+	var selectedUserID int64
+	row := db.Connection.QueryRow(sqlSelect, ID)
+	err := row.Scan(&selectedUserID)
+
+	if err == sql.ErrNoRows {
+		// not found
+		return true
 	}
-	// detected
 	return false
+
 }
 
-func (db *UserDatabase) InsertUser(user User) error {
+func (db *UserDatabase) InsertUser(user User) (int64, error) {
 	formattedTime := time.Now().Format("2006.01.02 15:04")
 
 	sqlInsert := "INSERT INTO Users (NickName, FirstName, LastName, Password, created_at) VALUES (?, ?, ?, ?, ?)"
 
 	hashedPassword, err := hash.Hash(user.Password)
 	if err != nil {
-		log.Warn().Err(err).Msg(" can`t hashed user`s password")
+		log.Warn().Err(err).Msg(" can`t hash user`s password")
 	}
 
-	_, err = db.Connection.Exec(sqlInsert, user.Nickname, user.FirstName, user.LastName, hashedPassword, formattedTime)
+	var selectedUser User
+
+	row := db.Connection.QueryRow(sqlInsert, user.Nickname, user.FirstName, user.LastName, hashedPassword, formattedTime)
+	if row.Err() != nil {
+		log.Warn().Err(row.Err()).Msg(" can`t insert user")
+		return 0, row.Err()
+	}
+
+	err = row.Scan(&selectedUser.ID, &selectedUser.Nickname, &selectedUser.FirstName,
+		&selectedUser.LastName, &selectedUser.Password, &selectedUser.CreatedAt,
+		&selectedUser.UpdatedAt, &selectedUser.DeletedAt)
 	if err != nil {
-		log.Warn().Err(err).Msg(" can`t insert user")
-		return err
+		log.Warn().Err(err).Msg(" can`t scan user`s password")
+		return 0, err
 	}
 
-	return nil
+	return selectedUser.ID, nil
 
 }
 
-func (db *UserDatabase) UpdateUser(ID int, user User) (int, error) {
+func (db *UserDatabase) UpdateUser(ID int64, user User) (int64, error) {
 
 	hashedPassword, err := hash.Hash(user.Password)
 	if err != nil {
@@ -156,15 +174,15 @@ func (db *UserDatabase) FindUsers() (*[]User, error) {
 	return &users, nil
 }
 
-func (db *UserDatabase) DeleteUserByID(ID int) (int, error) {
+func (db *UserDatabase) DeleteUserByID(ID int64) error {
 	formattedTime := time.Now().Format("2006.01.02 15:04")
 	sqlSoftDelete := "UPDATE Users SET (deleted_at) = (?) WHERE ID = ?"
 
 	_, err := db.Connection.Exec(sqlSoftDelete, formattedTime, ID)
 	if err != nil {
 		log.Warn().Err(err).Msg(" can`t delete user`s data")
-		return 0, err
+		return err
 	}
 
-	return ID, nil
+	return nil
 }
