@@ -69,26 +69,8 @@ func (db *UserDatabase) FindByID(ID int64) (*User, error) {
 }
 
 func (db *UserDatabase) IsUserDeleted(ID int64) bool {
-	//sqlSelect := `SELECT CASE WHEN Users.deleted_at IS NOT NULL THEN 0 ELSE 1 END FROM Users WHERE ID = ?`
-	//row := db.Connection.QueryRow(sqlSelect, ID)
-	//var isDeleted int
-	//
-	//if err := row.Scan(&isDeleted); err != nil {
-	//	if err == sql.ErrNoRows {
-	//		return true
-	//	} else {
-	//		return true
-	//	}
-	//} else {
-	//	if isDeleted == 0 {
-	//		// not detected
-	//		return true
-	//	}
-	//}
-	//// detected
-	//return false
 
-	sqlSelect := `select ID from Users where ID = ? and deleted_at != 'Unknown'`
+	sqlSelect := `select ID from Users where ID = ? and deleted_at != 'NULL'`
 	var selectedUserID int64
 	row := db.Connection.QueryRow(sqlSelect, ID)
 	err := row.Scan(&selectedUserID)
@@ -97,14 +79,14 @@ func (db *UserDatabase) IsUserDeleted(ID int64) bool {
 		// not found
 		return true
 	}
-	return false
 
+	return false
 }
 
 func (db *UserDatabase) InsertUser(user User) (int64, error) {
 	formattedTime := time.Now().Format("2006.01.02 15:04")
 
-	sqlInsert := "INSERT INTO Users (NickName, FirstName, LastName, Password, created_at) VALUES (?, ?, ?, ?, ?)"
+	sqlInsert := "INSERT INTO Users (nick_name, first_name, last_name, password, created_at) VALUES (?, ?, ?, ?, ?)"
 
 	hashedPassword, err := hash.Hash(user.Password)
 	if err != nil {
@@ -138,7 +120,7 @@ func (db *UserDatabase) UpdateUser(ID int64, user User) (int64, error) {
 		log.Warn().Err(err).Msg(" can`t hashed user`s password")
 	}
 	formattedTime := time.Now().Format("2006.01.02 15:04")
-	sqlUpdate := "UPDATE Users SET NickName = ?, FirstName = ?, LastName = ?, Password = ?, updated_at = ? WHERE ID = ?"
+	sqlUpdate := "UPDATE Users SET nick_name = ?, first_name = ?, last_name = ?, password = ?, updated_at = ? WHERE ID = ?"
 
 	_, err = db.Connection.Exec(sqlUpdate, user.Nickname, user.FirstName, user.LastName, hashedPassword, formattedTime, ID)
 	if err != nil {
