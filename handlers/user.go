@@ -55,13 +55,12 @@ func (uh *UserHandler) CreateUser(c echo.Context) error {
 }
 
 func (uh *UserHandler) GetUser(c echo.Context) error {
-	ID := c.Param("id")
-	userID, err := strconv.Atoi(ID)
+	userID, err := enterParameter(c)
 	if err != nil {
 		return c.JSON(http.StatusNotFound, response.UserResponse{Status: http.StatusNotFound, Message: "error", Data: &echo.Map{"data": err.Error()}})
 	}
 
-	user, err := uh.DbUser.FindByID(int64(userID))
+	user, err := uh.DbUser.FindByID(userID)
 	if err == errors.New("user not found") {
 		return c.JSON(http.StatusNotFound, response.UserResponse{Status: http.StatusNotFound, Message: "error", Data: &echo.Map{"data": err.Error()}})
 	} else if err != nil {
@@ -72,12 +71,11 @@ func (uh *UserHandler) GetUser(c echo.Context) error {
 }
 
 func (uh *UserHandler) EditUser(c echo.Context) error {
-	ID := c.Param("id")
-	userID, err := strconv.Atoi(ID)
+	userID, err := enterParameter(c)
 	if err != nil {
 		return c.JSON(http.StatusNotFound, response.UserResponse{Status: http.StatusNotFound, Message: "error", Data: &echo.Map{"data": err.Error()}})
 	}
-	if uh.DbUser.IsUserDeleted(int64(userID)) == true {
+	if uh.DbUser.IsUserDeleted(userID) == true {
 		var user database.User
 
 		if err := c.Bind(&user); err != nil {
@@ -111,14 +109,13 @@ func (uh *UserHandler) GetAllUsers(c echo.Context) error {
 }
 
 func (uh *UserHandler) DeleteUser(c echo.Context) error {
-	ID := c.Param("id")
-	userID, err := strconv.Atoi(ID)
+	userID, err := enterParameter(c)
 	if err != nil {
 		return c.JSON(http.StatusNotFound, response.UserResponse{Status: http.StatusNotFound, Message: "error", Data: &echo.Map{"data": err.Error()}})
 	}
 
-	if uh.DbUser.IsUserDeleted(int64(userID)) == true {
-		err := uh.DbUser.DeleteUserByID(int64(userID))
+	if uh.DbUser.IsUserDeleted(userID) == true {
+		err := uh.DbUser.DeleteUserByID(userID)
 		if err != nil {
 			return c.JSON(http.StatusInternalServerError, response.UserResponse{Status: http.StatusInternalServerError, Message: "error", Data: &echo.Map{"data": err.Error()}})
 		}
@@ -126,4 +123,10 @@ func (uh *UserHandler) DeleteUser(c echo.Context) error {
 	}
 
 	return c.JSON(http.StatusConflict, response.UserResponse{Status: http.StatusConflict, Message: "error", Data: &echo.Map{"data": "This user is already deleted"}})
+}
+
+func enterParameter(c echo.Context) (int64, error) {
+	ID := c.Param("id")
+	userID, err := strconv.Atoi(ID)
+	return int64(userID), err
 }

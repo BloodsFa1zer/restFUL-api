@@ -88,10 +88,7 @@ func (db *UserDatabase) InsertUser(user User) (int64, error) {
 
 	sqlInsert := "INSERT INTO Users (nick_name, first_name, last_name, password, created_at) VALUES (?, ?, ?, ?, ?)"
 
-	hashedPassword, err := hash.Hash(user.Password)
-	if err != nil {
-		log.Warn().Err(err).Msg(" can`t hash user`s password")
-	}
+	hashedPassword := hash.Hash(user.Password)
 
 	var selectedUser User
 
@@ -101,7 +98,7 @@ func (db *UserDatabase) InsertUser(user User) (int64, error) {
 		return 0, row.Err()
 	}
 
-	err = row.Scan(&selectedUser.ID, &selectedUser.Nickname, &selectedUser.FirstName,
+	err := row.Scan(&selectedUser.ID, &selectedUser.Nickname, &selectedUser.FirstName,
 		&selectedUser.LastName, &selectedUser.Password, &selectedUser.CreatedAt,
 		&selectedUser.UpdatedAt, &selectedUser.DeletedAt)
 	if err != nil {
@@ -115,14 +112,12 @@ func (db *UserDatabase) InsertUser(user User) (int64, error) {
 
 func (db *UserDatabase) UpdateUser(ID int64, user User) (int64, error) {
 
-	hashedPassword, err := hash.Hash(user.Password)
-	if err != nil {
-		log.Warn().Err(err).Msg(" can`t hashed user`s password")
-	}
+	hashedPassword := hash.Hash(user.Password)
+
 	formattedTime := time.Now().Format("2006.01.02 15:04")
 	sqlUpdate := "UPDATE Users SET nick_name = ?, first_name = ?, last_name = ?, password = ?, updated_at = ? WHERE ID = ?"
 
-	_, err = db.Connection.Exec(sqlUpdate, user.Nickname, user.FirstName, user.LastName, hashedPassword, formattedTime, ID)
+	_, err := db.Connection.Exec(sqlUpdate, user.Nickname, user.FirstName, user.LastName, hashedPassword, formattedTime, ID)
 	if err != nil {
 		log.Warn().Err(err).Msg(" can`t update user`s data")
 		return 0, err

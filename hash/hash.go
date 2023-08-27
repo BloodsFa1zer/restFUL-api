@@ -1,13 +1,16 @@
 package hash
 
-import "golang.org/x/crypto/bcrypt"
+import (
+	"github.com/rs/zerolog/log"
+	"golang.org/x/crypto/bcrypt"
+)
 
-func Hash(password string) (string, error) {
+func Hash(password string) string {
 	bytes, err := bcrypt.GenerateFromPassword([]byte(password), 20)
 	if err != nil {
-		return "", err
+		log.Panic().Err(err).Msg("can`t hash user password")
 	}
-	return string(bytes), nil
+	return string(bytes)
 }
 
 //func Verify(hashed, password string) bool {
