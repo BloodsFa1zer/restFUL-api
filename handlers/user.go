@@ -86,7 +86,7 @@ func (uh *UserHandler) EditUser(c echo.Context) error {
 			return c.JSON(http.StatusBadRequest, response.UserResponse{Status: http.StatusBadRequest, Message: "error", Data: &echo.Map{"data": validationErr.Error()}})
 		}
 
-		updatedUserID, err := uh.DbUser.UpdateUser(int64(userID), user)
+		updatedUserID, err := uh.DbUser.UpdateUser(userID, user)
 		if err != nil {
 			return c.JSON(http.StatusInternalServerError, response.UserResponse{Status: http.StatusInternalServerError, Message: "error", Data: &echo.Map{"data": err.Error()}})
 		}

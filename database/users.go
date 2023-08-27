@@ -16,9 +16,9 @@ type User struct {
 	FirstName string  `db:"first_name" json:"FirstName" validate:"required"`
 	LastName  string  `db:"last_name" json:"LastName" validate:"required"`
 	Password  string  `db:"password" json:"Password" validate:"required"`
-	CreatedAt string  `db:"created_at" json:"created_at"`
-	UpdatedAt *string `db:"updated_at" json:"updated_at,omitempty"`
-	DeletedAt *string `db:"deleted_at" json:"deleted_at,omitempty"`
+	CreatedAt string  `db:"created_at" json:"CreatedAt"`
+	UpdatedAt *string `db:"updated_at" json:"UpdatedAt,omitempty"`
+	DeletedAt *string `db:"deleted_at" json:"DeletedAt,omitempty"`
 }
 
 type DbInterface interface {
