@@ -12,15 +12,3 @@ func Hash(password string) string {
 	}
 	return string(bytes)
 }
-
-//func Verify(hashed, password string) bool {
-//	user, err := cl.FindUser("Password", password)
-//	if err != nil {
-//		return false
-//	}
-//	errPassword := bcrypt.CompareHashAndPassword([]byte(hashed), []byte(user.Password))
-//	if errPassword == nil {
-//		return true
-//	}
-//	return false
-//}
