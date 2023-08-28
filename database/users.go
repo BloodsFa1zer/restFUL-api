@@ -73,24 +73,23 @@ func (db *UserDatabase) InsertUser(user User) (int64, error) {
 
 	hashedPassword := hash.Hash(user.Password)
 
-	var selectedUser User
+	var selectedUserID int64
 
-	row := db.Connection.QueryRow(sqlInsert, user.Nickname, user.FirstName, user.LastName, hashedPassword, formattedTime)
-	if row.Err() != nil {
-		log.Warn().Err(row.Err()).Msg(" can`t insert user")
-		return 0, row.Err()
-	}
-
-	err := row.Scan(&selectedUser.ID, &selectedUser.Nickname, &selectedUser.FirstName,
-		&selectedUser.LastName, &selectedUser.Password, &selectedUser.CreatedAt,
-	)
-	if err != nil && err != sql.ErrNoRows {
-		log.Warn().Err(err).Msg(" can`t scan user`s info")
+	_, err := db.Connection.Exec(sqlInsert, user.Nickname, user.FirstName, user.LastName, hashedPassword, formattedTime)
+	if err != nil {
+		log.Warn().Err(err).Msg(" can`t insert user")
 		return 0, err
 	}
 
-	return selectedUser.ID, nil
+	sqlGet := "SELECT ID From Users WHERE nick_name = (?)"
+	row := db.Connection.QueryRow(sqlGet, user.Nickname)
+	err = row.Scan(&selectedUserID)
+	if err != nil {
+		log.Warn().Err(err).Msg(" can`t scan user data")
+		return 0, err
+	}
 
+	return selectedUserID, nil
 }
 
 func (db *UserDatabase) UpdateUser(ID int64, user User) (int64, error) {
