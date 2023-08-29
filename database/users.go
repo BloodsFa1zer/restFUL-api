@@ -73,23 +73,19 @@ func (db *UserDatabase) InsertUser(user User) (int64, error) {
 
 	hashedPassword := hash.Hash(user.Password)
 
-	var selectedUserID int64
-
-	_, err := db.Connection.Exec(sqlInsert, user.Nickname, user.FirstName, user.LastName, hashedPassword, formattedTime)
+	result, err := db.Connection.Exec(sqlInsert, user.Nickname, user.FirstName, user.LastName, hashedPassword, formattedTime)
 	if err != nil {
 		log.Warn().Err(err).Msg(" can`t insert user")
 		return 0, err
 	}
 
-	sqlGet := "SELECT ID From Users WHERE nick_name = (?)"
-	row := db.Connection.QueryRow(sqlGet, user.Nickname)
-	err = row.Scan(&selectedUserID)
+	userID, err := result.LastInsertId()
 	if err != nil {
-		log.Warn().Err(err).Msg(" can`t scan user data")
+		log.Warn().Err(err).Msg(" can`t find userID")
 		return 0, err
 	}
 
-	return selectedUserID, nil
+	return userID, nil
 }
 
 func (db *UserDatabase) UpdateUser(ID int64, user User) (int64, error) {

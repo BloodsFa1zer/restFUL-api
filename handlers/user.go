@@ -62,7 +62,7 @@ func (uh *UserHandler) GetUser(c echo.Context) error {
 	user, err := uh.DbUser.FindByID(userID)
 
 	if err == sql.ErrNoRows {
-		return c.JSON(http.StatusConflict, response.UserResponse{Status: http.StatusConflict, Message: "error", Data: &echo.Map{"data": "This user is already deleted"}})
+		return c.JSON(http.StatusConflict, response.UserResponse{Status: http.StatusConflict, Message: "error", Data: &echo.Map{"data": "There is no user with that ID"}})
 	} else if err != nil {
 		return c.JSON(http.StatusInternalServerError, response.UserResponse{Status: http.StatusInternalServerError, Message: "error", Data: &echo.Map{"data": err.Error()}})
 	}
@@ -87,7 +87,7 @@ func (uh *UserHandler) EditUser(c echo.Context) error {
 
 	updatedUserID, err := uh.DbUser.UpdateUser(userID, user)
 	if err == sql.ErrNoRows {
-		return c.JSON(http.StatusConflict, response.UserResponse{Status: http.StatusConflict, Message: "error", Data: &echo.Map{"data": "This user is already deleted"}})
+		return c.JSON(http.StatusConflict, response.UserResponse{Status: http.StatusConflict, Message: "error", Data: &echo.Map{"data": "There is no user with that ID"}})
 	} else if err != nil {
 		return c.JSON(http.StatusInternalServerError, response.UserResponse{Status: http.StatusInternalServerError, Message: "error", Data: &echo.Map{"data": err.Error()}})
 	}
@@ -113,7 +113,7 @@ func (uh *UserHandler) DeleteUser(c echo.Context) error {
 
 	err = uh.DbUser.DeleteUserByID(userID)
 	if err == sql.ErrNoRows {
-		return c.JSON(http.StatusConflict, response.UserResponse{Status: http.StatusConflict, Message: "error", Data: &echo.Map{"data": "This user is already deleted"}})
+		return c.JSON(http.StatusConflict, response.UserResponse{Status: http.StatusConflict, Message: "error", Data: &echo.Map{"data": "There is no user with that ID"}})
 	} else if err != nil {
 		return c.JSON(http.StatusInternalServerError, response.UserResponse{Status: http.StatusInternalServerError, Message: "error", Data: &echo.Map{"data": err.Error()}})
 	}
