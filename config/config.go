@@ -7,8 +7,9 @@ import (
 )
 
 type Config struct {
-	DbName string `env:"DatabaseName"`
-	DbPath string `env:"DatabasePath"`
+	DbName     string `env:"DatabaseName"`
+	DbPath     string `env:"DatabasePath"`
+	SigningKey string `env:"SigningKey"`
 }
 
 func LoadENV(filename string) *Config {

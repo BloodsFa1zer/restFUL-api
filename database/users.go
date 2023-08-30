@@ -26,6 +26,7 @@ type DbInterface interface {
 	UpdateUser(ID int64, user User) (int64, error)
 	FindUsers() (*[]User, error)
 	DeleteUserByID(ID int64) error
+	FindByNickname(nickname string) (string, error)
 }
 
 type UserDatabase struct {
@@ -64,6 +65,24 @@ func (db *UserDatabase) FindByID(ID int64) (*User, error) {
 	}
 
 	return &selectedUser, nil
+}
+
+func (db *UserDatabase) FindByNickname(nickname string) (string, error) {
+	sqlSelect := `SELECT password FROM Users WHERE nick_name = ? AND deleted_at == 'NULL'`
+	var selectedUserPassword string
+
+	row := db.Connection.QueryRow(sqlSelect, nickname)
+	err := row.Scan(&selectedUserPassword)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			// Handle "not found" scenario
+			return "", err
+		}
+		log.Warn().Err(err).Msg(" can`t find user")
+		return "", err
+	}
+
+	return selectedUserPassword, nil
 }
 
 func (db *UserDatabase) InsertUser(user User) (int64, error) {
