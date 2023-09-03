@@ -7,7 +7,6 @@ import (
 
 func UserAuth(e *echo.Echo) {
 
-	// e.Use(middleware.BasicAuth(IsValidCredentials))
 	e.Use(middleware.Logger())
 	// e.Use(middleware.Recover())
 
