@@ -8,6 +8,7 @@ import (
 
 func main() {
 	e := echo.New()
+	e.HidePort = true
 
 	Middleware.UserAuth(e)
 	routes.UserRoute(e)

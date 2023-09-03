@@ -26,7 +26,7 @@ type DbInterface interface {
 	UpdateUser(ID int64, user User) (int64, error)
 	FindUsers() (*[]User, error)
 	DeleteUserByID(ID int64) error
-	FindByNickname(nickname string) (string, error)
+	FindByNickname(nickname string) (*User, error)
 }
 
 type UserDatabase struct {
@@ -67,22 +67,24 @@ func (db *UserDatabase) FindByID(ID int64) (*User, error) {
 	return &selectedUser, nil
 }
 
-func (db *UserDatabase) FindByNickname(nickname string) (string, error) {
+func (db *UserDatabase) FindByNickname(nickname string) (*User, error) {
 	sqlSelect := `SELECT password FROM Users WHERE nick_name = ? AND deleted_at == 'NULL'`
-	var selectedUserPassword string
+	var selectedUser User
 
 	row := db.Connection.QueryRow(sqlSelect, nickname)
-	err := row.Scan(&selectedUserPassword)
+	err := row.Scan(&selectedUser.ID, &selectedUser.Nickname, &selectedUser.FirstName,
+		&selectedUser.LastName, &selectedUser.Password, &selectedUser.CreatedAt,
+		&selectedUser.UpdatedAt, &selectedUser.DeletedAt)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			// Handle "not found" scenario
-			return "", err
+			return nil, err
 		}
 		log.Warn().Err(err).Msg(" can`t find user")
-		return "", err
+		return nil, err
 	}
 
-	return selectedUserPassword, nil
+	return &selectedUser, nil
 }
 
 func (db *UserDatabase) InsertUser(user User) (int64, error) {
@@ -108,25 +110,35 @@ func (db *UserDatabase) InsertUser(user User) (int64, error) {
 }
 
 func (db *UserDatabase) UpdateUser(ID int64, user User) (int64, error) {
+	//row := db.Connection.QueryRow(sqlUpdate, user.Nickname, user.FirstName, user.LastName, hashedPassword, formattedTime, ID)
+	//if row.Err() != nil {
+	//	log.Warn().Err(row.Err()).Msg(" can`t update user`s data")
+	//	return 0, row.Err()
+	//}
 
 	hashedPassword := hash.Hash(user.Password)
 
 	formattedTime := time.Now().Format("2006.01.02 15:04")
 	sqlUpdate := "UPDATE Users SET nick_name = ?, first_name = ?, last_name = ?, password = ?, updated_at = ? WHERE ID = ? AND deleted_at == 'NULL'"
 
-	row := db.Connection.QueryRow(sqlUpdate, user.Nickname, user.FirstName, user.LastName, hashedPassword, formattedTime, ID)
-	if row.Err() != nil {
-		log.Warn().Err(row.Err()).Msg(" can`t update user`s data")
-		return 0, row.Err()
-	}
-	var selectedUserID int64
-	err := row.Scan(&selectedUserID)
-	if err == sql.ErrNoRows {
+	result, err := db.Connection.Exec(sqlUpdate, user.Nickname, user.FirstName, user.LastName, hashedPassword, formattedTime, ID)
+	if err != nil {
+		log.Warn().Err(err).Msg(" can`t update user`s data")
 		return 0, err
 	}
 
-	return ID, nil
+	affectedRow, err := result.RowsAffected()
+	if err != nil {
+		log.Warn().Err(err).Msg(" error getting affected rows")
+		return 0, err
+	}
 
+	if affectedRow == 0 {
+		log.Warn().Msg(" no rows affected")
+		return 0, sql.ErrNoRows
+	}
+
+	return ID, nil
 }
 
 func (db *UserDatabase) FindUsers() (*[]User, error) {
@@ -157,17 +169,21 @@ func (db *UserDatabase) DeleteUserByID(ID int64) error {
 	formattedTime := time.Now().Format("2006.01.02 15:04")
 	sqlSoftDelete := "UPDATE Users SET (deleted_at) = (?) WHERE ID = ? AND deleted_at == 'NULL'"
 
-	row := db.Connection.QueryRow(sqlSoftDelete, formattedTime, ID)
-
-	if row.Err() != nil {
-		log.Warn().Err(row.Err()).Msg(" can`t delete user`s data")
-		return row.Err()
+	result, err := db.Connection.Exec(sqlSoftDelete, formattedTime, ID)
+	if err != nil {
+		log.Warn().Err(err).Msg(" can`t delete user`s data")
+		return err
 	}
 
-	var selectedUserID int64
-	err := row.Scan(&selectedUserID)
-	if err == sql.ErrNoRows {
+	affectedRow, err := result.RowsAffected()
+	if err != nil {
+		log.Warn().Err(err).Msg(" error getting affected rows")
 		return err
+	}
+
+	if affectedRow == 0 {
+		log.Warn().Msg(" no rows affected")
+		return sql.ErrNoRows
 	}
 
 	return nil

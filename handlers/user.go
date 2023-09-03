@@ -1,13 +1,17 @@
 package handlers
 
 import (
+	"app3.1/config"
 	"app3.1/database"
 	"app3.1/response"
 	"database/sql"
 	"github.com/go-playground/validator/v10"
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/labstack/echo/v4"
+	"github.com/rs/zerolog/log"
 	"net/http"
 	"strconv"
+	"time"
 )
 
 type UserHandlersInterface interface {
@@ -16,6 +20,9 @@ type UserHandlersInterface interface {
 	CreateUser(c echo.Context) error
 	GetUser(c echo.Context) error
 	GetAllUsers(c echo.Context) error
+	Restricted(c echo.Context) error
+	Accessible(c echo.Context) error
+	Login(c echo.Context) error
 }
 
 type UserHandler struct {
@@ -71,6 +78,10 @@ func (uh *UserHandler) GetUser(c echo.Context) error {
 }
 
 func (uh *UserHandler) EditUser(c echo.Context) error {
+	userJWT := c.Get("user").(*jwt.Token)
+	claims := userJWT.Claims.(*JwtCustomClaims)
+	name := claims.Name
+	c.String(http.StatusOK, "Welcome "+name+"!")
 	userID, err := enterParameter(c)
 	if err != nil {
 		return c.JSON(http.StatusNotFound, response.UserResponse{Status: http.StatusNotFound, Message: "error", Data: &echo.Map{"data": err.Error()}})
@@ -125,4 +136,53 @@ func enterParameter(c echo.Context) (int64, error) {
 	ID := c.Param("id")
 	userID, err := strconv.Atoi(ID)
 	return int64(userID), err
+}
+
+type JwtCustomClaims struct {
+	Name  string `json:"name"`
+	Admin bool   `json:"admin"`
+	jwt.RegisteredClaims
+}
+
+func (uh *UserHandler) Accessible(c echo.Context) error {
+	return c.String(http.StatusOK, "Accessible")
+}
+
+func (uh *UserHandler) Restricted(c echo.Context) error {
+	user := c.Get("user").(*jwt.Token)
+	claims := user.Claims.(*JwtCustomClaims)
+	log.Info().Type("claims", claims)
+	// log.InfoDump(claims, "claims")
+	name := claims.Name
+	return c.String(http.StatusOK, "Welcome "+name+"!")
+}
+
+func (uh *UserHandler) Login(c echo.Context) error {
+
+	cfg := config.LoadENV("config/.env")
+	cfg.ParseENV()
+
+	username := c.FormValue("username")
+	password := c.FormValue("password")
+
+	if username != "user" || password != "password" {
+		return echo.ErrUnauthorized
+	}
+
+	claims := &JwtCustomClaims{
+		Name:  "admin",
+		Admin: true,
+		RegisteredClaims: jwt.RegisteredClaims{
+			ExpiresAt: jwt.NewNumericDate(time.Now().Add(time.Hour * 24)),
+		},
+	}
+
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+
+	t, err := token.SignedString([]byte(cfg.SigningKey))
+	if err != nil {
+		return err
+	}
+
+	return c.JSON(http.StatusOK, response.UserResponse{Status: http.StatusOK, Message: "success", Data: &echo.Map{"token": t}})
 }
