@@ -15,6 +15,7 @@ type User struct {
 	FirstName string  `db:"first_name" json:"FirstName" validate:"required"`
 	LastName  string  `db:"last_name" json:"LastName" validate:"required"`
 	Password  string  `db:"password" json:"Password" validate:"required"`
+	Role      string  `db:"role" json:"Role"`
 	CreatedAt string  `db:"created_at" json:"CreatedAt"`
 	UpdatedAt *string `db:"updated_at" json:"UpdatedAt,omitempty"`
 	DeletedAt *string `db:"deleted_at" json:"DeletedAt,omitempty"`
@@ -54,7 +55,7 @@ func (db *UserDatabase) FindByID(ID int64) (*User, error) {
 	row := db.Connection.QueryRow(sqlSelect, ID)
 	err := row.Scan(&selectedUser.ID, &selectedUser.Nickname, &selectedUser.FirstName,
 		&selectedUser.LastName, &selectedUser.Password, &selectedUser.CreatedAt,
-		&selectedUser.UpdatedAt, &selectedUser.DeletedAt)
+		&selectedUser.UpdatedAt, &selectedUser.DeletedAt, &selectedUser.Role)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			// Handle "not found" scenario
@@ -68,13 +69,13 @@ func (db *UserDatabase) FindByID(ID int64) (*User, error) {
 }
 
 func (db *UserDatabase) FindByNickname(nickname string) (*User, error) {
-	sqlSelect := `SELECT password FROM Users WHERE nick_name = ? AND deleted_at == 'NULL'`
+	sqlSelect := `SELECT * FROM Users WHERE nick_name = ? AND deleted_at == 'NULL'`
 	var selectedUser User
 
 	row := db.Connection.QueryRow(sqlSelect, nickname)
 	err := row.Scan(&selectedUser.ID, &selectedUser.Nickname, &selectedUser.FirstName,
 		&selectedUser.LastName, &selectedUser.Password, &selectedUser.CreatedAt,
-		&selectedUser.UpdatedAt, &selectedUser.DeletedAt)
+		&selectedUser.UpdatedAt, &selectedUser.DeletedAt, &selectedUser.Role)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			// Handle "not found" scenario
@@ -155,7 +156,7 @@ func (db *UserDatabase) FindUsers() (*[]User, error) {
 		var singleUser User
 		err := rows.Scan(&singleUser.ID, &singleUser.Nickname, &singleUser.FirstName,
 			&singleUser.LastName, &singleUser.Password, &singleUser.CreatedAt,
-			&singleUser.UpdatedAt, &singleUser.DeletedAt)
+			&singleUser.UpdatedAt, &singleUser.DeletedAt, &singleUser.Role)
 
 		if err != nil {
 			return nil, err
