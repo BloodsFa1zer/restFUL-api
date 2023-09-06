@@ -21,7 +21,7 @@ type UserHandlersInterface interface {
 	GetUser(c echo.Context) error
 	GetAllUsers(c echo.Context) error
 	Login(c echo.Context) error
-	Permission(c echo.Context) error
+	IsUserHavePermissionToAdminActions(c echo.Context) bool
 }
 
 type UserHandler struct {
@@ -83,6 +83,11 @@ func (uh *UserHandler) EditUser(c echo.Context) error {
 	}
 	var user database.User
 
+	if !uh.IsUserHavePermissionToAdminActions(c) {
+		return c.JSON(http.StatusUnauthorized, response.UserResponse{Status: http.StatusUnauthorized, Message: "error", Data: &echo.Map{"data": "that user has no access to admin actions"}})
+
+	}
+
 	if err := c.Bind(&user); err != nil {
 		return c.JSON(http.StatusBadRequest, response.UserResponse{Status: http.StatusBadRequest, Message: "error", Data: &echo.Map{"data": err.Error()}})
 	}
@@ -117,6 +122,11 @@ func (uh *UserHandler) DeleteUser(c echo.Context) error {
 		return c.JSON(http.StatusNotFound, response.UserResponse{Status: http.StatusNotFound, Message: "error", Data: &echo.Map{"data": err.Error()}})
 	}
 
+	if !uh.IsUserHavePermissionToAdminActions(c) {
+		return c.JSON(http.StatusUnauthorized, response.UserResponse{Status: http.StatusUnauthorized, Message: "error", Data: &echo.Map{"data": "that user has no access to admin actions"}})
+
+	}
+
 	err = uh.DbUser.DeleteUserByID(userID)
 	if err == sql.ErrNoRows {
 		return c.JSON(http.StatusConflict, response.UserResponse{Status: http.StatusConflict, Message: "error", Data: &echo.Map{"data": "There is no user with that ID"}})
@@ -140,14 +150,14 @@ func (uh *UserHandler) Login(c echo.Context) error {
 	username := c.FormValue("username")
 	password := c.FormValue("password")
 
-	selectedUser, err := uh.DbUser.FindByNickname(username)
+	selectedUser, err := uh.DbUser.FindByNicknameToGetUserPassword(username)
 	if err == sql.ErrNoRows {
 		return c.JSON(http.StatusConflict, response.UserResponse{Status: http.StatusConflict, Message: "error", Data: &echo.Map{"data": "There is no user with that ID"}})
 	} else if err != nil {
 		return c.JSON(http.StatusInternalServerError, response.UserResponse{Status: http.StatusInternalServerError, Message: "error", Data: &echo.Map{"data": err.Error()}})
 	}
 
-	if username != selectedUser.Nickname || hash.Verify(selectedUser.Password, password) != true {
+	if hash.Verify(selectedUser.Password, password) != true {
 		return echo.ErrUnauthorized
 	}
 
@@ -168,20 +178,18 @@ func (uh *UserHandler) Login(c echo.Context) error {
 	return c.JSON(http.StatusOK, response.UserResponse{Status: http.StatusOK, Message: "success", Data: &echo.Map{"token": t}})
 }
 
-//func (uh *UserHandler) Permission(c echo.Context) error {
-//	user := c.Get("user")
-//	userToken, ok := user.(jwt.Token)
-//	if !ok {
-//		return c.JSON(http.StatusBadRequest, response.UserResponse{Status: http.StatusBadRequest, Message: "error", Data: &echo.Map{"data": "token is nil"}})
-//	}
-//	claims := userToken.Claims.(*config.JwtCustomClaims)
-//	log.Info().Type("claims", claims)
-//	// log.InfoDump(claims, "claims")
-//	expirationTime, err := claims.GetExpirationTime()
-//	if err != nil {
-//		return c.JSON(http.StatusBadRequest, response.UserResponse{Status: http.StatusBadRequest, Message: "error", Data: &echo.Map{"data": err.Error()}})
-//	}
-//	name := claims.Name
-//
-//	return c.JSON(http.StatusOK, response.UserResponse{Status: http.StatusOK, Message: "success", Data: &echo.Map{"message": "Welcome " + name + "! Your permission will continue for: " + expirationTime.Format("2006.01.02 15:04")}})
-//}
+func (uh *UserHandler) IsUserHavePermissionToAdminActions(c echo.Context) bool {
+	user := c.Get("user")
+	userToken, ok := user.(jwt.Token)
+	if !ok {
+		return false
+	}
+	claims := userToken.Claims.(*config.JwtCustomClaims)
+
+	if claims.Role == "Admin" {
+		return true
+	}
+
+	return false
+
+}

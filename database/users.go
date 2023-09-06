@@ -27,7 +27,7 @@ type DbInterface interface {
 	UpdateUser(ID int64, user User) (int64, error)
 	FindUsers() (*[]User, error)
 	DeleteUserByID(ID int64) error
-	FindByNickname(nickname string) (*User, error)
+	FindByNicknameToGetUserPassword(nickname string) (*User, error)
 }
 
 type UserDatabase struct {
@@ -68,7 +68,7 @@ func (db *UserDatabase) FindByID(ID int64) (*User, error) {
 	return &selectedUser, nil
 }
 
-func (db *UserDatabase) FindByNickname(nickname string) (*User, error) {
+func (db *UserDatabase) FindByNicknameToGetUserPassword(nickname string) (*User, error) {
 	sqlSelect := `SELECT * FROM Users WHERE nick_name = ? AND deleted_at == 'NULL'`
 	var selectedUser User
 
@@ -189,3 +189,25 @@ func (db *UserDatabase) DeleteUserByID(ID int64) error {
 
 	return nil
 }
+
+//func (db *UserDatabase) IsUserHavePermission(nickname string) (bool, error) {
+//	sqlCheckPermission := "SELECT role FROM Users WHERE nick_name = (?) AND role = 'Admin'"
+//
+//	result, err := db.Connection.Exec(sqlCheckPermission, nickname)
+//	if err != nil {
+//		log.Warn().Err(err).Msg(" can`t select user")
+//		return false, err
+//	}
+//
+//	numberOfAffectedRows, err := result.RowsAffected()
+//	if err != nil {
+//		log.Warn().Err(err).Msg(" can`t count affected rows user")
+//		return false, err
+//	}
+//
+//	if numberOfAffectedRows == 0 {
+//		return false, sql.ErrNoRows
+//	}
+//
+//	return true, nil
+//}

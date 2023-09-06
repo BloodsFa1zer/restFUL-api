@@ -1,1 +1,2 @@
-drop table Users
+ALTER TABLE Users
+DROP COLUMN role
