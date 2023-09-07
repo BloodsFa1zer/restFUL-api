@@ -21,13 +21,19 @@ type UserHandlersInterface interface {
 	GetUser(c echo.Context) error
 	GetAllUsers(c echo.Context) error
 	Login(c echo.Context) error
-	IsUserHavePermissionToAdminActions(c echo.Context) bool
+	IsUserHavePermissionToActions(roleToFind string, c echo.Context) bool
 }
 
 type UserHandler struct {
 	DbUser   database.DbInterface
 	validate *validator.Validate
 }
+
+const (
+	adminRole     = "Admin"
+	userRole      = "User"
+	moderatorRole = "Moderator"
+)
 
 func NewUserHandler(dbUser database.DbInterface, validate *validator.Validate) *UserHandler {
 	return &UserHandler{DbUser: dbUser, validate: validate}
@@ -83,7 +89,7 @@ func (uh *UserHandler) EditUser(c echo.Context) error {
 	}
 	var user database.User
 
-	if !uh.IsUserHavePermissionToAdminActions(c) {
+	if !uh.IsUserHavePermissionToActions(adminRole, c) {
 		return c.JSON(http.StatusUnauthorized, response.UserResponse{Status: http.StatusUnauthorized, Message: "error", Data: &echo.Map{"data": "that user has no access to admin actions"}})
 
 	}
@@ -122,7 +128,7 @@ func (uh *UserHandler) DeleteUser(c echo.Context) error {
 		return c.JSON(http.StatusNotFound, response.UserResponse{Status: http.StatusNotFound, Message: "error", Data: &echo.Map{"data": err.Error()}})
 	}
 
-	if !uh.IsUserHavePermissionToAdminActions(c) {
+	if !uh.IsUserHavePermissionToActions(adminRole, c) {
 		return c.JSON(http.StatusUnauthorized, response.UserResponse{Status: http.StatusUnauthorized, Message: "error", Data: &echo.Map{"data": "that user has no access to admin actions"}})
 
 	}
@@ -178,18 +184,16 @@ func (uh *UserHandler) Login(c echo.Context) error {
 	return c.JSON(http.StatusOK, response.UserResponse{Status: http.StatusOK, Message: "success", Data: &echo.Map{"token": t}})
 }
 
-func (uh *UserHandler) IsUserHavePermissionToAdminActions(c echo.Context) bool {
+func (uh *UserHandler) IsUserHavePermissionToActions(roleToFind string, c echo.Context) bool {
 	user := c.Get("user")
 	userToken, ok := user.(jwt.Token)
 	if !ok {
 		return false
 	}
 	claims := userToken.Claims.(*config.JwtCustomClaims)
-
-	if claims.Role == "Admin" {
+	if claims.Role == roleToFind {
 		return true
 	}
 
 	return false
-
 }
