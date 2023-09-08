@@ -111,11 +111,6 @@ func (db *UserDatabase) InsertUser(user User) (int64, error) {
 }
 
 func (db *UserDatabase) UpdateUser(ID int64, user User) (int64, error) {
-	//row := db.Connection.QueryRow(sqlUpdate, user.Nickname, user.FirstName, user.LastName, hashedPassword, formattedTime, ID)
-	//if row.Err() != nil {
-	//	log.Warn().Err(row.Err()).Msg(" can`t update user`s data")
-	//	return 0, row.Err()
-	//}
 
 	hashedPassword := hash.Hash(user.Password)
 
