@@ -1,4 +1,3 @@
-
 CREATE TABLE IF NOT EXISTS Users (
     ID integer primary key autoincrement,
     nick_name   text UNIQUE,

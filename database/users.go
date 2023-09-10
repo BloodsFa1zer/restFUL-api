@@ -1,7 +1,6 @@
 package database
 
 import (
-	"app3.1/config"
 	"app3.1/hash"
 	"database/sql"
 	_ "github.com/mattn/go-sqlite3"
@@ -19,33 +18,6 @@ type User struct {
 	CreatedAt string  `db:"created_at" json:"CreatedAt"`
 	UpdatedAt *string `db:"updated_at" json:"UpdatedAt,omitempty"`
 	DeletedAt *string `db:"deleted_at" json:"DeletedAt,omitempty"`
-}
-
-type DbInterface interface {
-	FindByID(ID int64) (*User, error)
-	InsertUser(user User) (int64, error)
-	UpdateUser(ID int64, user User) (int64, error)
-	FindUsers() (*[]User, error)
-	DeleteUserByID(ID int64) error
-	FindByNicknameToGetUserPassword(nickname string) (*User, error)
-}
-
-type UserDatabase struct {
-	Connection *sql.DB
-}
-
-func NewUserDatabase() *UserDatabase {
-	cfg := config.LoadENV("config/.env")
-	cfg.ParseENV()
-
-	db, err := sql.Open(cfg.DbName, cfg.DbPath)
-	if err != nil {
-		log.Warn().Err(err).Msg(" can`t connect to SQLite")
-		return nil
-	}
-	log.Info().Msg("successfully connected to SQLite")
-
-	return &UserDatabase{Connection: db}
 }
 
 func (db *UserDatabase) FindByID(ID int64) (*User, error) {
