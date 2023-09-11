@@ -19,6 +19,7 @@ type UserHandler struct {
 	service services.UserServiceInterface
 }
 
-func NewUserHandler(service services.UserServiceInterface) *UserHandler {
-	return &UserHandler{service: service}
+// Which way is better in that case? NewUserHandler(service services.UserServiceInterface) or written one?
+func NewUserHandler() *UserHandler {
+	return &UserHandler{service: services.NewUserService()}
 }
