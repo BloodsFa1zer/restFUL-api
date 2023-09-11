@@ -2,7 +2,6 @@ package services
 
 import (
 	"app3.1/database"
-	"github.com/rs/zerolog/log"
 )
 
 func (us *UserService) Create(user database.User) (int64, error) {
@@ -34,8 +33,6 @@ func (us *UserService) Delete(userID int64) error {
 
 func (us *UserService) GetPasswordByName(nickname string) (*database.User, error) {
 	user, err := us.DbUser.FindByNicknameToGetUserPassword(nickname)
-	log.Info().Msg("lfdpdlep")
-	log.Info().Msg(user.Role)
 	return user, err
 }
 
