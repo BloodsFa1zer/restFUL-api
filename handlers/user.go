@@ -6,9 +6,9 @@ import (
 	"app3.1/hash"
 	"app3.1/response"
 	"database/sql"
+	"fmt"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/labstack/echo/v4"
-	"github.com/rs/zerolog/log"
 	"net/http"
 	"strconv"
 	"time"
@@ -160,12 +160,15 @@ func (uh *UserHandler) Login(c echo.Context) error {
 
 func (uh *UserHandler) isUserHavePermissionToActions(roleToFind string, c echo.Context) bool {
 	user := c.Get("user")
-	userToken, ok := user.(jwt.Token)
+	userToken, ok := user.(*jwt.Token)
+	if !userToken.Valid {
+		return false
+	}
 	if !ok {
 		return false
 	}
 	claims := userToken.Claims.(*config.JwtCustomClaims)
-	log.Info().Msg(claims.Role)
+	fmt.Println(claims.Role)
 
 	return claims.Role == roleToFind
 }
