@@ -1,23 +1,27 @@
 package handlers
 
 import (
-	"app3.1/config"
 	"app3.1/database"
-	"app3.1/hash"
 	"app3.1/response"
+	"app3.1/serviceLayer"
 	"database/sql"
-	"fmt"
-	"github.com/golang-jwt/jwt/v5"
 	"github.com/labstack/echo/v4"
 	"net/http"
 	"strconv"
-	"time"
 )
 
+type UserHandler struct {
+	service serviceLayer.UserServiceInterface
+}
+
+func NewUserHandler(service serviceLayer.UserServiceInterface) *UserHandler {
+	return &UserHandler{service: service}
+}
+
 const (
-	adminRole     = "Admin"
-	userRole      = "User"
-	moderatorRole = "Moderator"
+	adminRole = "Admin"
+	// userRole      = "User"
+	// moderatorRole = "Moderator"
 )
 
 func (uh *UserHandler) CreateUser(c echo.Context) error {
@@ -27,12 +31,7 @@ func (uh *UserHandler) CreateUser(c echo.Context) error {
 		return c.JSON(http.StatusBadRequest, response.UserResponse{Status: http.StatusBadRequest, Message: "error", Data: &echo.Map{"data": err.Error()}})
 	}
 
-	// Maybe it`s better not to create separate func for validation, but validate Struct in Create()? However, it goes against single responsibility
-	if err := uh.service.UserValidation(user); err != nil {
-		return c.JSON(http.StatusBadRequest, response.UserResponse{Status: http.StatusBadRequest, Message: "error", Data: &echo.Map{"data": err.Error()}})
-	}
-
-	userID, err := uh.service.Create(user)
+	userID, err := uh.service.CreateUser(user)
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, response.UserResponse{Status: http.StatusInternalServerError, Message: "error", Data: &echo.Map{"data": err.Error()}})
 	}
@@ -46,7 +45,7 @@ func (uh *UserHandler) GetUser(c echo.Context) error {
 		return c.JSON(http.StatusNotFound, response.UserResponse{Status: http.StatusNotFound, Message: "error", Data: &echo.Map{"data": err.Error()}})
 	}
 
-	user, err := uh.service.Get(userID)
+	user, err := uh.service.GetUser(userID)
 	if err == sql.ErrNoRows {
 		return c.JSON(http.StatusConflict, response.UserResponse{Status: http.StatusConflict, Message: "error", Data: &echo.Map{"data": "There is no user with that ID"}})
 	} else if err != nil {
@@ -57,38 +56,34 @@ func (uh *UserHandler) GetUser(c echo.Context) error {
 }
 
 func (uh *UserHandler) EditUser(c echo.Context) error {
+	if !uh.isUserHavePermissionToActions(adminRole, c) {
+		return c.JSON(http.StatusUnauthorized, response.UserResponse{Status: http.StatusUnauthorized, Message: "error", Data: &echo.Map{"data": "that user has no access to admin actions"}})
+	}
+
 	userID, err := enterParameter(c)
 	if err != nil {
 		return c.JSON(http.StatusNotFound, response.UserResponse{Status: http.StatusNotFound, Message: "error", Data: &echo.Map{"data": err.Error()}})
 	}
-	var user database.User
 
-	if !uh.isUserHavePermissionToActions(adminRole, c) {
-		return c.JSON(http.StatusUnauthorized, response.UserResponse{Status: http.StatusUnauthorized, Message: "error", Data: &echo.Map{"data": "that user has no access to admin actions"}})
-	}
+	var user database.User
 
 	if err := c.Bind(&user); err != nil {
 		return c.JSON(http.StatusBadRequest, response.UserResponse{Status: http.StatusBadRequest, Message: "error", Data: &echo.Map{"data": err.Error()}})
 	}
 
-	err = uh.service.UserValidation(user)
-	if err != nil {
-		return c.JSON(http.StatusBadRequest, response.UserResponse{Status: http.StatusBadRequest, Message: "error", Data: &echo.Map{"data": err.Error()}})
-	}
-
-	updatedUserID, err := uh.service.Edit(userID, user)
+	updatedUserID, err := uh.service.EditUser(userID, user)
 	if err == sql.ErrNoRows {
 		return c.JSON(http.StatusConflict, response.UserResponse{Status: http.StatusConflict, Message: "error", Data: &echo.Map{"data": "There is no user with that ID"}})
 	} else if err != nil {
 		return c.JSON(http.StatusInternalServerError, response.UserResponse{Status: http.StatusInternalServerError, Message: "error", Data: &echo.Map{"data": err.Error()}})
 	}
 
-	updatedUser, err := uh.service.Get(updatedUserID)
+	updatedUser, err := uh.service.GetUser(updatedUserID)
 	return c.JSON(http.StatusOK, response.UserResponse{Status: http.StatusOK, Message: "success", Data: &echo.Map{"data": updatedUser}})
 }
 
 func (uh *UserHandler) GetAllUsers(c echo.Context) error {
-	users, err := uh.service.GetAll()
+	users, err := uh.service.GetAllUsers()
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, response.UserResponse{Status: http.StatusInternalServerError, Message: "error", Data: &echo.Map{"data": err.Error()}})
 	}
@@ -97,16 +92,16 @@ func (uh *UserHandler) GetAllUsers(c echo.Context) error {
 }
 
 func (uh *UserHandler) DeleteUser(c echo.Context) error {
+	if !uh.isUserHavePermissionToActions(adminRole, c) {
+		return c.JSON(http.StatusUnauthorized, response.UserResponse{Status: http.StatusUnauthorized, Message: "error", Data: &echo.Map{"data": "that user has no access to admin actions"}})
+	}
+
 	userID, err := enterParameter(c)
 	if err != nil {
 		return c.JSON(http.StatusNotFound, response.UserResponse{Status: http.StatusNotFound, Message: "error", Data: &echo.Map{"data": err.Error()}})
 	}
 
-	if !uh.isUserHavePermissionToActions(adminRole, c) {
-		return c.JSON(http.StatusUnauthorized, response.UserResponse{Status: http.StatusUnauthorized, Message: "error", Data: &echo.Map{"data": "that user has no access to admin actions"}})
-	}
-
-	err = uh.service.Delete(userID)
+	err = uh.service.DeleteUser(userID)
 	if err == sql.ErrNoRows {
 		return c.JSON(http.StatusConflict, response.UserResponse{Status: http.StatusConflict, Message: "error", Data: &echo.Map{"data": "There is no user with that ID"}})
 	} else if err != nil {
@@ -123,36 +118,14 @@ func enterParameter(c echo.Context) (int64, error) {
 }
 
 func (uh *UserHandler) Login(c echo.Context) error {
-	cfg := config.LoadENV("config/.env")
-	cfg.ParseENV()
-
 	username := c.FormValue("username")
 	password := c.FormValue("password")
 
-	selectedUser, err := uh.service.GetPasswordByName(username)
+	t, err := uh.service.GetUserByName(username, password)
 	if err == sql.ErrNoRows {
 		return c.JSON(http.StatusConflict, response.UserResponse{Status: http.StatusConflict, Message: "error", Data: &echo.Map{"data": "There is no user with that NickName"}})
 	} else if err != nil {
 		return c.JSON(http.StatusInternalServerError, response.UserResponse{Status: http.StatusInternalServerError, Message: "error", Data: &echo.Map{"data": err.Error()}})
-	}
-
-	if hash.Verify(selectedUser.Password, password) != true {
-		return echo.ErrUnauthorized
-	}
-
-	claims := &config.JwtCustomClaims{
-		Name: selectedUser.Nickname,
-		Role: selectedUser.Role,
-		RegisteredClaims: jwt.RegisteredClaims{
-			ExpiresAt: jwt.NewNumericDate(time.Now().Add(time.Hour * 24)),
-		},
-	}
-
-	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-
-	t, err := token.SignedString([]byte(cfg.SigningKey))
-	if err != nil {
-		return c.JSON(http.StatusBadRequest, response.UserResponse{Status: http.StatusBadRequest, Message: "error", Data: &echo.Map{"data": err.Error()}})
 	}
 
 	return c.JSON(http.StatusOK, response.UserResponse{Status: http.StatusOK, Message: "success", Data: &echo.Map{"token": t}})
@@ -160,15 +133,6 @@ func (uh *UserHandler) Login(c echo.Context) error {
 
 func (uh *UserHandler) isUserHavePermissionToActions(roleToFind string, c echo.Context) bool {
 	user := c.Get("user")
-	userToken, ok := user.(*jwt.Token)
-	if !userToken.Valid {
-		return false
-	}
-	if !ok {
-		return false
-	}
-	claims := userToken.Claims.(*config.JwtCustomClaims)
-	fmt.Println(claims.Role)
 
-	return claims.Role == roleToFind
+	return uh.service.IsUserHavePermission(roleToFind, user)
 }
