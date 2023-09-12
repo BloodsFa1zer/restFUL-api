@@ -5,7 +5,7 @@ import (
 )
 
 type UserServiceInterface interface {
-	UserValidation(user database.User) (error, int)
+	UserValidation(user database.User) error
 	CreateUser(user database.User) (int64, error, int)
 	GetUser(userID int64) (*database.User, error, int)
 	EditUser(ID int64, user database.User) (int64, error, int)
