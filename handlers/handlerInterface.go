@@ -11,5 +11,5 @@ type UserHandlersInterface interface {
 	GetUser(c echo.Context) error
 	GetAllUsers(c echo.Context) error
 	Login(c echo.Context) error
-	isUserHavePermissionToActions(roleToFind string, c echo.Context) bool
+	isUserHavePermissionToActions(roleToFind string, c echo.Context) (bool, int)
 }
