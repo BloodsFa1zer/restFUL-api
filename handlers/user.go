@@ -5,15 +5,16 @@ import (
 	"app3.1/response"
 	"app3.1/service"
 	"github.com/labstack/echo/v4"
+	"net/http"
 	"strconv"
 )
 
 type UserHandler struct {
-	service service.UserServiceInterface
+	userService service.UserServiceInterface
 }
 
 func NewUserHandler(service service.UserServiceInterface) *UserHandler {
-	return &UserHandler{service: service}
+	return &UserHandler{userService: service}
 }
 
 const (
@@ -26,10 +27,10 @@ func (uh *UserHandler) CreateUser(c echo.Context) error {
 	var user database.User
 
 	if err := c.Bind(&user); err != nil {
-		return c.JSON(400, response.UserResponse{Status: 400, Message: "error", Data: &echo.Map{"data": err.Error()}})
+		return c.JSON(http.StatusBadRequest, response.UserResponse{Status: http.StatusBadRequest, Message: "error", Data: &echo.Map{"data": err.Error()}})
 	}
 
-	userID, err, respStatus := uh.service.CreateUser(user)
+	userID, err, respStatus := uh.userService.CreateUser(user)
 	if err != nil {
 		return c.JSON(respStatus, response.UserResponse{Status: respStatus, Message: "error", Data: &echo.Map{"data": err.Error()}})
 	}
@@ -43,7 +44,7 @@ func (uh *UserHandler) GetUser(c echo.Context) error {
 		return c.JSON(respStatus, response.UserResponse{Status: respStatus, Message: "error", Data: &echo.Map{"data": err.Error()}})
 	}
 
-	user, err, respStatus := uh.service.GetUser(userID)
+	user, err, respStatus := uh.userService.GetUser(userID)
 	if err != nil {
 		return c.JSON(respStatus, response.UserResponse{Status: respStatus, Message: "error", Data: &echo.Map{"data": err.Error()}})
 	}
@@ -64,20 +65,20 @@ func (uh *UserHandler) EditUser(c echo.Context) error {
 	var user database.User
 
 	if err := c.Bind(&user); err != nil {
-		return c.JSON(400, response.UserResponse{Status: 400, Message: "error", Data: &echo.Map{"data": err.Error()}})
+		return c.JSON(http.StatusBadRequest, response.UserResponse{Status: http.StatusBadRequest, Message: "error", Data: &echo.Map{"data": err.Error()}})
 	}
 
-	updatedUserID, err, respStatus := uh.service.EditUser(userID, user)
+	updatedUserID, err, respStatus := uh.userService.EditUser(userID, user)
 	if err != nil {
 		return c.JSON(respStatus, response.UserResponse{Status: respStatus, Message: "error", Data: &echo.Map{"data": err.Error()}})
 	}
 
-	updatedUser, err, respStatus := uh.service.GetUser(updatedUserID)
+	updatedUser, err, respStatus := uh.userService.GetUser(updatedUserID)
 	return c.JSON(respStatus, response.UserResponse{Status: respStatus, Message: "success", Data: &echo.Map{"data": updatedUser}})
 }
 
 func (uh *UserHandler) GetAllUsers(c echo.Context) error {
-	users, err, respStatus := uh.service.GetAllUsers()
+	users, err, respStatus := uh.userService.GetAllUsers()
 	if err != nil {
 		return c.JSON(respStatus, response.UserResponse{Status: respStatus, Message: "error", Data: &echo.Map{"data": err.Error()}})
 	}
@@ -95,7 +96,7 @@ func (uh *UserHandler) DeleteUser(c echo.Context) error {
 		return c.JSON(respStatus, response.UserResponse{Status: respStatus, Message: "error", Data: &echo.Map{"data": err.Error()}})
 	}
 
-	err, respStatus = uh.service.DeleteUser(userID)
+	err, respStatus = uh.userService.DeleteUser(userID)
 	if err != nil {
 		return c.JSON(respStatus, response.UserResponse{Status: respStatus, Message: "error", Data: &echo.Map{"data": err.Error()}})
 	}
@@ -106,14 +107,14 @@ func (uh *UserHandler) DeleteUser(c echo.Context) error {
 func enterParameter(c echo.Context) (int64, error, int) {
 	ID := c.Param("id")
 	userID, err := strconv.Atoi(ID)
-	return int64(userID), err, 404
+	return int64(userID), err, http.StatusNotFound
 }
 
 func (uh *UserHandler) Login(c echo.Context) error {
 	username := c.FormValue("username")
 	password := c.FormValue("password")
 
-	t, err, respStatus := uh.service.GetToken(username, password)
+	t, err, respStatus := uh.userService.GetToken(username, password)
 	if err != nil {
 		return c.JSON(respStatus, response.UserResponse{Status: respStatus, Message: "error", Data: &echo.Map{"data": err.Error()}})
 	}
@@ -124,5 +125,5 @@ func (uh *UserHandler) Login(c echo.Context) error {
 func (uh *UserHandler) isUserHavePermissionToActions(roleToFind string, c echo.Context) (bool, int) {
 	user := c.Get("user")
 
-	return uh.service.IsUserHavePermission(roleToFind, user)
+	return uh.userService.IsUserHavePermission(roleToFind, user)
 }
