@@ -4,6 +4,7 @@ import (
 	"app3.1/database"
 	"app3.1/response"
 	"app3.1/service"
+	"errors"
 	"github.com/labstack/echo/v4"
 	"net/http"
 	"strconv"
@@ -104,17 +105,14 @@ func (uh *UserHandler) DeleteUser(c echo.Context) error {
 	return c.JSON(respStatus, response.UserResponse{Status: respStatus, Message: "success", Data: &echo.Map{"data": "User successfully deleted"}})
 }
 
-func enterParameter(c echo.Context) (int64, error, int) {
-	ID := c.Param("id")
-	userID, err := strconv.Atoi(ID)
-	return int64(userID), err, http.StatusNotFound
-}
-
 func (uh *UserHandler) Login(c echo.Context) error {
 	username := c.FormValue("username")
 	password := c.FormValue("password")
 
-	t, err, respStatus := uh.userService.GetToken(username, password)
+	t, err, respStatus := uh.userService.CreateToken(username, password)
+	if err == errors.New("you have no account and will be redirected to registration page") {
+		return c.Redirect(respStatus, "/register")
+	}
 	if err != nil {
 		return c.JSON(respStatus, response.UserResponse{Status: respStatus, Message: "error", Data: &echo.Map{"data": err.Error()}})
 	}
@@ -122,8 +120,64 @@ func (uh *UserHandler) Login(c echo.Context) error {
 	return c.JSON(respStatus, response.UserResponse{Status: respStatus, Message: "success", Data: &echo.Map{"token": t}})
 }
 
+func (uh *UserHandler) UserRegistration(c echo.Context) error {
+	username := c.FormValue("username")
+	firstName := c.FormValue("firstName")
+	surName := c.FormValue("lastName")
+	password := c.FormValue("password")
+
+	userID, err, respStatus := uh.userService.Registration(username, firstName, surName, password)
+	if err != nil {
+		return c.JSON(respStatus, response.UserResponse{Status: respStatus, Message: "error", Data: &echo.Map{"data": err.Error()}})
+	}
+	str := "Now you need to login, to get access to actions that is only for registered users." +
+		"ID to interact with your profile is:"
+
+	return c.JSON(respStatus, response.UserResponse{Status: respStatus, Message: "error", Data: &echo.Map{str: userID}})
+}
+
+// to Vote user need to register or login and then using his Bearer Token to vote, by POST(/user/:id)
+func (uh *UserHandler) Voting(c echo.Context) error {
+
+	userID, err, respStatus := enterParameter(c)
+	if err != nil {
+		return c.JSON(respStatus, response.UserResponse{Status: respStatus, Message: "error", Data: &echo.Map{"data": err.Error()}})
+	}
+
+	userName := uh.GiveUserToken(c)
+	err, respStatus = uh.userService.Vote(userID, userName)
+
+	return c.JSON(respStatus, response.UserResponse{Status: respStatus, Message: "error", Data: &echo.Map{"data": err.Error()}})
+}
+
+func (uh *UserHandler) GetUserRate(c echo.Context) error {
+	userID, err, respStatus := enterParameter(c)
+	if err != nil {
+		return c.JSON(respStatus, response.UserResponse{Status: respStatus, Message: "error", Data: &echo.Map{"data": err.Error()}})
+	}
+
+	user, err, respStatus := uh.userService.GetUserRate(userID)
+	if err != nil {
+		return c.JSON(respStatus, response.UserResponse{Status: respStatus, Message: "error", Data: &echo.Map{"data": err.Error()}})
+	}
+
+	return c.JSON(respStatus, response.UserResponse{Status: respStatus, Message: "success", Data: &echo.Map{"data": user}})
+}
+
+func enterParameter(c echo.Context) (int64, error, int) {
+	ID := c.Param("id")
+	userID, err := strconv.Atoi(ID)
+	return int64(userID), err, http.StatusNotFound
+}
+
 func (uh *UserHandler) isUserHavePermissionToActions(roleToFind string, c echo.Context) (bool, int) {
 	user := c.Get("user")
 
 	return uh.userService.IsUserHavePermission(roleToFind, user)
+}
+
+func (uh *UserHandler) GiveUserToken(c echo.Context) string {
+	user := c.Get("user")
+
+	return uh.userService.GetUserNameViaToken(user)
 }

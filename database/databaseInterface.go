@@ -7,4 +7,6 @@ type DbInterface interface {
 	FindUsers() (*[]User, error)
 	DeleteUserByID(ID int64) error
 	FindByNicknameToGetUserPassword(nickname string) (*User, error)
+	GetUserRating(ID int64) (*User, error)
+	VoteForUser(ID int64) error
 }

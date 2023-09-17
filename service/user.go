@@ -17,6 +17,9 @@ type UserService struct {
 	validate *validator.Validate
 }
 
+var userVote map[string][]int64
+var voteTime map[string]time.Time
+
 func NewUserService(DbUser database.DbInterface, validate *validator.Validate) *UserService {
 	return &UserService{DbUser: DbUser, validate: validate}
 }
@@ -87,13 +90,13 @@ func (us *UserService) DeleteUser(userID int64) (error, int) {
 	return errors.New("user successfully deleted"), http.StatusOK
 }
 
-func (us *UserService) GetToken(nickname, password string) (string, error, int) {
+func (us *UserService) CreateToken(nickname, password string) (string, error, int) {
 	cfg := config.LoadENV("config/.env")
 	cfg.ParseENV()
 
 	user, err := us.DbUser.FindByNicknameToGetUserPassword(nickname)
 	if err == sql.ErrNoRows {
-		return "", errors.New("there is no user with that NickName"), http.StatusBadRequest
+		return "", errors.New("you have no account and will be redirected to registration page"), http.StatusSeeOther
 	} else if err != nil {
 		return "", err, http.StatusInternalServerError
 	}
@@ -117,6 +120,25 @@ func (us *UserService) GetToken(nickname, password string) (string, error, int) 
 	return t, err, http.StatusOK
 }
 
+func (us *UserService) Registration(username, firstName, surName, password string) (int, error, int) {
+	user := database.User{
+		Nickname:  username,
+		FirstName: firstName,
+		LastName:  surName,
+		Password:  password,
+	}
+	if err := us.UserValidation(user); err != nil {
+		return 0, err, http.StatusBadRequest
+	}
+
+	userID, err := us.DbUser.InsertUser(user)
+	if err != nil {
+		return 0, err, http.StatusInternalServerError
+	}
+
+	return int(userID), err, http.StatusCreated
+}
+
 func (us *UserService) UserValidation(user database.User) error {
 
 	if validationErr := us.validate.Struct(&user); validationErr != nil {
@@ -133,7 +155,78 @@ func (us *UserService) IsUserHavePermission(roleToCheck string, user interface{}
 	if !ok {
 		return false, http.StatusBadRequest
 	}
+
 	claims := userToken.Claims.(*config.JwtCustomClaims)
 
 	return claims.Role == roleToCheck, http.StatusOK
+}
+
+func (us *UserService) GetUserNameViaToken(user interface{}) string {
+	userToken, ok := user.(*jwt.Token)
+	if !userToken.Valid {
+		return ""
+	}
+	if !ok {
+		return ""
+	}
+	claims := userToken.Claims.(*config.JwtCustomClaims)
+
+	return claims.Name
+}
+
+func (us *UserService) Vote(userID int64, userName string) (error, int) {
+
+	// TODO: here i need to check if user with that token does not vote for that person earlier and make a
+	// time restriction for 1 hour
+
+	if _, ok := voteTime[userName]; ok {
+		if !us.isUserAllowedToVoteAgain(voteTime[userName]) {
+			return errors.New("user only allowed to vote once in an hour, your last vote was at:" + voteTime[userName].Format("2006.01.02 15:04")), http.StatusLocked
+		}
+	}
+
+	if !us.isUserAllowedToVoteForThatCandidate(userVote, userName, userID) {
+		return errors.New("you are not allowed to vote for the same candidate twice"), http.StatusLocked
+	}
+
+	userVote[userName] = append(userVote[userName], userID)
+	voteTime[userName] = time.Now()
+	err := us.DbUser.VoteForUser(userID)
+	if err == sql.ErrNoRows {
+		return errors.New("there is no user with that ID"), http.StatusBadRequest
+	} else if err != nil {
+		return err, http.StatusInternalServerError
+	}
+
+	return nil, http.StatusOK
+}
+
+func (us *UserService) GetUserRate(ID int64) (*database.User, error, int) {
+	user, err := us.DbUser.GetUserRating(ID)
+	if err == sql.ErrNoRows {
+		return nil, errors.New("there is no user with that ID"), http.StatusBadRequest
+	} else if err != nil {
+		return nil, err, http.StatusInternalServerError
+	}
+
+	return user, nil, http.StatusOK
+}
+
+// Maybe it is better to check it in the middleware?
+func (us *UserService) isUserAllowedToVoteAgain(voteTime time.Time) bool {
+
+	oneHourAgo := voteTime.Add(-1 * time.Hour)
+	duration := voteTime.Sub(oneHourAgo)
+
+	return duration > time.Hour
+}
+
+func (us *UserService) isUserAllowedToVoteForThatCandidate(userVote map[string][]int64, userName string, desiredID int64) bool {
+	for _, votes := range userVote[userName] {
+		if votes == desiredID {
+			return false
+		}
+	}
+
+	return true
 }

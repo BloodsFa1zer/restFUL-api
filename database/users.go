@@ -19,6 +19,7 @@ type User struct {
 	CreatedAt string  `db:"created_at" json:"CreatedAt"`
 	UpdatedAt *string `db:"updated_at" json:"UpdatedAt,omitempty"`
 	DeletedAt *string `db:"deleted_at" json:"DeletedAt,omitempty"`
+	Rating    int     `db:"rating"   json:"Rating"`
 }
 
 type UserDatabase struct {
@@ -46,7 +47,7 @@ func (db *UserDatabase) FindByID(ID int64) (*User, error) {
 	row := db.Connection.QueryRow(sqlSelect, ID)
 	err := row.Scan(&selectedUser.ID, &selectedUser.Nickname, &selectedUser.FirstName,
 		&selectedUser.LastName, &selectedUser.Password, &selectedUser.CreatedAt,
-		&selectedUser.UpdatedAt, &selectedUser.DeletedAt, &selectedUser.Role)
+		&selectedUser.UpdatedAt, &selectedUser.DeletedAt, &selectedUser.Role, &selectedUser.Rating)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			// Handle "not found" scenario
@@ -66,7 +67,7 @@ func (db *UserDatabase) FindByNicknameToGetUserPassword(nickname string) (*User,
 	row := db.Connection.QueryRow(sqlSelect, nickname)
 	err := row.Scan(&selectedUser.ID, &selectedUser.Nickname, &selectedUser.FirstName,
 		&selectedUser.LastName, &selectedUser.Password, &selectedUser.CreatedAt,
-		&selectedUser.UpdatedAt, &selectedUser.DeletedAt, &selectedUser.Role)
+		&selectedUser.UpdatedAt, &selectedUser.DeletedAt, &selectedUser.Role, &selectedUser.Rating)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			// Handle "not found" scenario
@@ -142,7 +143,7 @@ func (db *UserDatabase) FindUsers() (*[]User, error) {
 		var singleUser User
 		err := rows.Scan(&singleUser.ID, &singleUser.Nickname, &singleUser.FirstName,
 			&singleUser.LastName, &singleUser.Password, &singleUser.CreatedAt,
-			&singleUser.UpdatedAt, &singleUser.DeletedAt, &singleUser.Role)
+			&singleUser.UpdatedAt, &singleUser.DeletedAt, &singleUser.Role, &singleUser.Rating)
 
 		if err != nil {
 			return nil, err
@@ -176,24 +177,43 @@ func (db *UserDatabase) DeleteUserByID(ID int64) error {
 	return nil
 }
 
-//func (db *UserDatabase) IsUserHavePermission(nickname string) (bool, error) {
-//	sqlCheckPermission := "SELECT role FROM Users WHERE nick_name = (?) AND role = 'Admin'"
-//
-//	result, err := db.Connection.Exec(sqlCheckPermission, nickname)
-//	if err != nil {
-//		log.Warn().Err(err).Msg(" can`t select user")
-//		return false, err
-//	}
-//
-//	numberOfAffectedRows, err := result.RowsAffected()
-//	if err != nil {
-//		log.Warn().Err(err).Msg(" can`t count affected rows user")
-//		return false, err
-//	}
-//
-//	if numberOfAffectedRows == 0 {
-//		return false, sql.ErrNoRows
-//	}
-//
-//	return true, nil
-//}
+func (db *UserDatabase) VoteForUser(ID int64) error {
+	sqlAddVote := "UPDATE Users SET rating = rating + ? WHERE ID = ? AND deleted_at == 'NULL'"
+	result, err := db.Connection.Exec(sqlAddVote, 1, ID)
+
+	if err != nil {
+		log.Warn().Err(err).Msg(" can`t vote for that user")
+		return err
+	}
+
+	affectedRow, err := result.RowsAffected()
+	if err != nil {
+		log.Warn().Err(err).Msg(" error getting affected rows")
+		return err
+	}
+
+	if affectedRow == 0 {
+		log.Warn().Msg(" no rows affected")
+		return sql.ErrNoRows
+	}
+
+	return nil
+}
+
+func (db *UserDatabase) GetUserRating(ID int64) (*User, error) {
+	sqlGetRating := "SELECT ID, nick_name, rating FROM Users WHERE ID = ? AND deleted_at = 'NULL'"
+	var user User
+
+	row := db.Connection.QueryRow(sqlGetRating, ID)
+	err := row.Scan(&user.ID, &user.Nickname, &user.ID)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			// Handle "not found" scenario
+			return nil, err
+		}
+		log.Warn().Err(err).Msg(" can`t find user")
+		return nil, err
+	}
+
+	return &user, nil
+}

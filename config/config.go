@@ -7,6 +7,7 @@ import (
 	echojwt "github.com/labstack/echo-jwt/v4"
 	"github.com/labstack/echo/v4"
 	"github.com/rs/zerolog/log"
+	"time"
 )
 
 type Config struct {
@@ -36,8 +37,9 @@ func (cfg *Config) ParseENV() {
 }
 
 type JwtCustomClaims struct {
-	Name string `json:"name"`
-	Role string `json:"role"`
+	Name       string    `json:"name"`
+	Role       string    `json:"role"`
+	VotingTime time.Time `json:"VotingTime"`
 	jwt.RegisteredClaims
 }
 
