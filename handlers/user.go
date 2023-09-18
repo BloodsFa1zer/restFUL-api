@@ -5,7 +5,6 @@ import (
 	"app3.1/response"
 	"app3.1/service"
 	"errors"
-	"fmt"
 	"github.com/labstack/echo/v4"
 	"net/http"
 	"strconv"
@@ -184,7 +183,5 @@ func (uh *UserHandler) isUserHavePermissionToActions(roleToFind string, c echo.C
 func (uh *UserHandler) GiveUserToken(c echo.Context) string {
 	user := c.Get("user")
 
-	name := uh.userService.GetUserNameViaToken(user)
-	fmt.Println(name)
-	return name
+	return uh.userService.GetUserNameViaToken(user)
 }

@@ -2,7 +2,6 @@ package service
 
 import (
 	"app3.1/database"
-	"time"
 )
 
 type UserServiceInterface interface {
@@ -18,6 +17,6 @@ type UserServiceInterface interface {
 	Registration(username, firstName, surName, password string) (int, error, int)
 	Vote(userID int64, userName string) (error, int)
 	GetUserRate(ID int64) (*database.UserRating, error, int)
-	isUserAllowedToVoteAgain(voteTime time.Time) bool
+	//	isUserAllowedToVoteAgain(voteTime time.Time) bool
 	//	isUserAllowedToVoteForThatCandidate(userVote map[string][]int64, userName string, desiredID int64) bool
 }

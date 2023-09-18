@@ -177,23 +177,12 @@ func (us *UserService) GetUserNameViaToken(user interface{}) string {
 
 func (us *UserService) Vote(userID int64, userName string) (error, int) {
 
-	// TODO: here i need to check if user with that token does not vote for that person earlier and make a
-	// time restriction for 1 hour
-
 	userVote, voteTime, err := mapCreation(userName, userID)
 	fmt.Println(voteTime)
 	fmt.Println(userVote)
-
-	//	if _, ok := voteTime[userName]; ok {
-	// fmt.Println("eff")
-	if !us.isUserAllowedToVoteAgain(voteTime[userName]) {
-		return errors.New("user only allowed to vote once in an hour, your last vote was at:" + voteTime[userName].Format("2006.01.02 15:04")), http.StatusLocked
+	if err != nil {
+		return err, http.StatusLocked
 	}
-	//}
-
-	//if !us.isUserAllowedToVoteForThatCandidate(userVote, userName, userID) {
-	//	return errors.New("you are not allowed to vote for the same candidate twice"), http.StatusLocked
-	//}
 
 	err = us.DbUser.VoteForUser(userID)
 	if err == sql.ErrNoRows {
@@ -202,7 +191,7 @@ func (us *UserService) Vote(userID int64, userName string) (error, int) {
 		return err, http.StatusInternalServerError
 	}
 
-	return err, http.StatusOK
+	return nil, http.StatusOK
 }
 
 func (us *UserService) GetUserRate(ID int64) (*database.UserRating, error, int) {
@@ -217,17 +206,19 @@ func (us *UserService) GetUserRate(ID int64) (*database.UserRating, error, int) 
 }
 
 // Maybe it is better to check it in the middleware?
-func (us *UserService) isUserAllowedToVoteAgain(voteTime time.Time) bool {
+func isUserAllowedToVoteAgain(voteTime map[string]time.Time, userName string) (bool, error) {
+	oneHourAfter := voteTime[userName].Add(1 * time.Hour)
+	duration := voteTime[userName].Sub(oneHourAfter)
 
-	oneHourAgo := voteTime.Add(-1 * time.Hour)
-	duration := voteTime.Sub(oneHourAgo)
+	if duration < time.Hour {
+		return false, errors.New("user only allowed to vote once in an hour, your last vote was at:" + voteTime[userName].Format("2006.01.02 15:04"))
+	}
 
-	return duration > time.Hour
+	return true, nil
 }
 
 func isUserAllowedToVoteForThatCandidate(userVote map[string][]int64, userName string, desiredID int64) (bool, error) {
 	votes := userVote[userName]
-	fmt.Println("votes:", votes)
 	for _, vote := range votes {
 		if vote == desiredID {
 			return false, errors.New("you are not allowed to vote for the same candidate twice")
@@ -240,17 +231,22 @@ func isUserAllowedToVoteForThatCandidate(userVote map[string][]int64, userName s
 func mapCreation(userName string, voteID int64) (map[string][]int64, map[string]time.Time, error) {
 
 	if _, ok := userVotes[userName]; ok {
-		if isAllowed, err := isUserAllowedToVoteForThatCandidate(userVotes, userName, voteID); isAllowed {
-			//userVotes[userName] = []int64{}
+		isUserAllowed, errVoteAgain := isUserAllowedToVoteAgain(votesTime, userName)
+		isAllowed, errVoteTime := isUserAllowedToVoteForThatCandidate(userVotes, userName, voteID)
 
+		if isUserAllowed && isAllowed {
 			userVotes[userName] = append(userVotes[userName], voteID)
 			votesTime[userName] = time.Now()
 		} else {
-			// fmt.Println("you are not allowed to vote for the same candidate twice")
-			return nil, votesTime, err
+			if errVoteAgain != nil {
+				return nil, votesTime, errVoteAgain
+			} else {
+				return nil, votesTime, errVoteTime
+			}
 		}
-	} else {
-		userVotes[userName] = append(userVotes[userName], voteID)
 	}
+	userVotes[userName] = []int64{voteID}
+	votesTime[userName] = time.Now()
+
 	return userVotes, votesTime, nil
 }
