@@ -5,6 +5,7 @@ import (
 	"app3.1/response"
 	"app3.1/service"
 	"errors"
+	"fmt"
 	"github.com/labstack/echo/v4"
 	"net/http"
 	"strconv"
@@ -145,9 +146,13 @@ func (uh *UserHandler) Voting(c echo.Context) error {
 	}
 
 	userName := uh.GiveUserToken(c)
-	err, respStatus = uh.userService.Vote(userID, userName)
 
-	return c.JSON(respStatus, response.UserResponse{Status: respStatus, Message: "error", Data: &echo.Map{"data": err.Error()}})
+	err, respStatus = uh.userService.Vote(userID, userName)
+	if err != nil {
+		return c.JSON(respStatus, response.UserResponse{Status: respStatus, Message: "error", Data: &echo.Map{"data": err.Error()}})
+	}
+
+	return c.JSON(respStatus, response.UserResponse{Status: respStatus, Message: "error", Data: &echo.Map{"data": "you are successfully voted"}})
 }
 
 func (uh *UserHandler) GetUserRate(c echo.Context) error {
@@ -179,5 +184,7 @@ func (uh *UserHandler) isUserHavePermissionToActions(roleToFind string, c echo.C
 func (uh *UserHandler) GiveUserToken(c echo.Context) string {
 	user := c.Get("user")
 
-	return uh.userService.GetUserNameViaToken(user)
+	name := uh.userService.GetUserNameViaToken(user)
+	fmt.Println(name)
+	return name
 }

@@ -17,7 +17,7 @@ type UserServiceInterface interface {
 	IsUserHavePermission(roleToCheck string, user interface{}) (bool, int)
 	Registration(username, firstName, surName, password string) (int, error, int)
 	Vote(userID int64, userName string) (error, int)
-	GetUserRate(ID int64) (*database.User, error, int)
+	GetUserRate(ID int64) (*database.UserRating, error, int)
 	isUserAllowedToVoteAgain(voteTime time.Time) bool
-	isUserAllowedToVoteForThatCandidate(userVote map[string][]int64, userName string, desiredID int64) bool
+	//	isUserAllowedToVoteForThatCandidate(userVote map[string][]int64, userName string, desiredID int64) bool
 }

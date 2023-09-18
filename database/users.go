@@ -200,9 +200,15 @@ func (db *UserDatabase) VoteForUser(ID int64) error {
 	return nil
 }
 
-func (db *UserDatabase) GetUserRating(ID int64) (*User, error) {
+type UserRating struct {
+	ID       int64  `db:"ID" json:"ID"`
+	Nickname string `db:"nick_name" json:"Nickname" validate:"required"`
+	Rating   int    `db:"rating"   json:"Rating"`
+}
+
+func (db *UserDatabase) GetUserRating(ID int64) (*UserRating, error) {
 	sqlGetRating := "SELECT ID, nick_name, rating FROM Users WHERE ID = ? AND deleted_at = 'NULL'"
-	var user User
+	var user UserRating
 
 	row := db.Connection.QueryRow(sqlGetRating, ID)
 	err := row.Scan(&user.ID, &user.Nickname, &user.ID)

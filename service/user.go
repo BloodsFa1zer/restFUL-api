@@ -6,6 +6,7 @@ import (
 	"app3.1/hash"
 	"database/sql"
 	"errors"
+	"fmt"
 	"github.com/go-playground/validator/v10"
 	"github.com/golang-jwt/jwt/v5"
 	"net/http"
@@ -17,8 +18,8 @@ type UserService struct {
 	validate *validator.Validate
 }
 
-var userVote map[string][]int64
-var voteTime map[string]time.Time
+var userVotes = make(map[string][]int64)
+var votesTime = make(map[string]time.Time)
 
 func NewUserService(DbUser database.DbInterface, validate *validator.Validate) *UserService {
 	return &UserService{DbUser: DbUser, validate: validate}
@@ -179,29 +180,32 @@ func (us *UserService) Vote(userID int64, userName string) (error, int) {
 	// TODO: here i need to check if user with that token does not vote for that person earlier and make a
 	// time restriction for 1 hour
 
-	if _, ok := voteTime[userName]; ok {
-		if !us.isUserAllowedToVoteAgain(voteTime[userName]) {
-			return errors.New("user only allowed to vote once in an hour, your last vote was at:" + voteTime[userName].Format("2006.01.02 15:04")), http.StatusLocked
-		}
-	}
+	userVote, voteTime, err := mapCreation(userName, userID)
+	fmt.Println(voteTime)
+	fmt.Println(userVote)
 
-	if !us.isUserAllowedToVoteForThatCandidate(userVote, userName, userID) {
-		return errors.New("you are not allowed to vote for the same candidate twice"), http.StatusLocked
+	//	if _, ok := voteTime[userName]; ok {
+	// fmt.Println("eff")
+	if !us.isUserAllowedToVoteAgain(voteTime[userName]) {
+		return errors.New("user only allowed to vote once in an hour, your last vote was at:" + voteTime[userName].Format("2006.01.02 15:04")), http.StatusLocked
 	}
+	//}
 
-	userVote[userName] = append(userVote[userName], userID)
-	voteTime[userName] = time.Now()
-	err := us.DbUser.VoteForUser(userID)
+	//if !us.isUserAllowedToVoteForThatCandidate(userVote, userName, userID) {
+	//	return errors.New("you are not allowed to vote for the same candidate twice"), http.StatusLocked
+	//}
+
+	err = us.DbUser.VoteForUser(userID)
 	if err == sql.ErrNoRows {
 		return errors.New("there is no user with that ID"), http.StatusBadRequest
 	} else if err != nil {
 		return err, http.StatusInternalServerError
 	}
 
-	return nil, http.StatusOK
+	return err, http.StatusOK
 }
 
-func (us *UserService) GetUserRate(ID int64) (*database.User, error, int) {
+func (us *UserService) GetUserRate(ID int64) (*database.UserRating, error, int) {
 	user, err := us.DbUser.GetUserRating(ID)
 	if err == sql.ErrNoRows {
 		return nil, errors.New("there is no user with that ID"), http.StatusBadRequest
@@ -221,12 +225,32 @@ func (us *UserService) isUserAllowedToVoteAgain(voteTime time.Time) bool {
 	return duration > time.Hour
 }
 
-func (us *UserService) isUserAllowedToVoteForThatCandidate(userVote map[string][]int64, userName string, desiredID int64) bool {
-	for _, votes := range userVote[userName] {
-		if votes == desiredID {
-			return false
+func isUserAllowedToVoteForThatCandidate(userVote map[string][]int64, userName string, desiredID int64) (bool, error) {
+	votes := userVote[userName]
+	fmt.Println("votes:", votes)
+	for _, vote := range votes {
+		if vote == desiredID {
+			return false, errors.New("you are not allowed to vote for the same candidate twice")
 		}
 	}
 
-	return true
+	return true, nil
+}
+
+func mapCreation(userName string, voteID int64) (map[string][]int64, map[string]time.Time, error) {
+
+	if _, ok := userVotes[userName]; ok {
+		if isAllowed, err := isUserAllowedToVoteForThatCandidate(userVotes, userName, voteID); isAllowed {
+			//userVotes[userName] = []int64{}
+
+			userVotes[userName] = append(userVotes[userName], voteID)
+			votesTime[userName] = time.Now()
+		} else {
+			// fmt.Println("you are not allowed to vote for the same candidate twice")
+			return nil, votesTime, err
+		}
+	} else {
+		userVotes[userName] = append(userVotes[userName], voteID)
+	}
+	return userVotes, votesTime, nil
 }
