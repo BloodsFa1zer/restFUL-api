@@ -185,7 +185,7 @@ func (us *UserService) Vote(userID int64, userName string) (error, int) {
 	}
 
 	err = us.DbUser.VoteForUser(userID)
-	err = us.DbUser.WriteUserVotes(voteTime, userVote)
+	err = us.DbUser.WriteUserVotes(voteTime, userVote, userName)
 	if err == sql.ErrNoRows {
 		return errors.New("there is no user with that ID"), http.StatusBadRequest
 	} else if err != nil {
