@@ -106,10 +106,13 @@ func (uh *UserHandler) DeleteUser(c echo.Context) error {
 }
 
 func (uh *UserHandler) Login(c echo.Context) error {
-	username := c.FormValue("username")
-	password := c.FormValue("password")
+	var user database.User
 
-	t, err, respStatus := uh.userService.CreateToken(username, password)
+	if err := c.Bind(&user); err != nil {
+		return c.JSON(http.StatusBadRequest, response.UserResponse{Status: http.StatusBadRequest, Message: "error", Data: &echo.Map{"data": err.Error()}})
+	}
+
+	t, err, respStatus := uh.userService.CreateToken(user)
 	if err == errors.New("you have no account and will be redirected to registration page") {
 		return c.Redirect(respStatus, "/register")
 	}
@@ -120,21 +123,21 @@ func (uh *UserHandler) Login(c echo.Context) error {
 	return c.JSON(respStatus, response.UserResponse{Status: respStatus, Message: "success", Data: &echo.Map{"token": t}})
 }
 
-func (uh *UserHandler) UserRegistration(c echo.Context) error {
-	username := c.FormValue("username")
-	firstName := c.FormValue("firstName")
-	surName := c.FormValue("lastName")
-	password := c.FormValue("password")
-
-	userID, err, respStatus := uh.userService.Registration(username, firstName, surName, password)
-	if err != nil {
-		return c.JSON(respStatus, response.UserResponse{Status: respStatus, Message: "error", Data: &echo.Map{"data": err.Error()}})
-	}
-	str := "Now you need to login, to get access to actions that is only for registered users." +
-		"ID to interact with your profile is:"
-
-	return c.JSON(respStatus, response.UserResponse{Status: respStatus, Message: "error", Data: &echo.Map{str: userID}})
-}
+// Or i can use existed func CreateUser
+//func (uh *UserHandler) UserRegistration(c echo.Context) error {
+//	var user database.User
+//
+//	if err := c.Bind(&user); err != nil {
+//		return c.JSON(http.StatusBadRequest, response.UserResponse{Status: http.StatusBadRequest, Message: "error", Data: &echo.Map{"data": err.Error()}})
+//	}
+//
+//	userID, err, respStatus := uh.userService.CreateUser(user)
+//	if err != nil {
+//		return c.JSON(respStatus, response.UserResponse{Status: respStatus, Message: "error", Data: &echo.Map{"data": err.Error()}})
+//	}
+//
+//	return c.JSON(respStatus, response.UserResponse{Status: respStatus, Message: "success", Data: &echo.Map{"ID to interact with your profile is": userID}})
+//}
 
 // to Vote user need to register or login and then using his Bearer Token to vote, by POST(/user/:id)
 func (uh *UserHandler) Voting(c echo.Context) error {
@@ -151,7 +154,7 @@ func (uh *UserHandler) Voting(c echo.Context) error {
 		return c.JSON(respStatus, response.UserResponse{Status: respStatus, Message: "error", Data: &echo.Map{"data": err.Error()}})
 	}
 
-	return c.JSON(respStatus, response.UserResponse{Status: respStatus, Message: "error", Data: &echo.Map{"data": "you are successfully voted"}})
+	return c.JSON(respStatus, response.UserResponse{Status: respStatus, Message: "success", Data: &echo.Map{"data": "you are successfully voted"}})
 }
 
 func (uh *UserHandler) GetUserRate(c echo.Context) error {

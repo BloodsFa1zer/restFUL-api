@@ -18,7 +18,8 @@ func UserRoute(e *echo.Echo) {
 	protected.Use(echojwt.WithConfig(config.NewConfig()))
 	protected.PUT("/user/:id", userHandler.EditUser)
 	protected.DELETE("/user/:id", userHandler.DeleteUser)
-	protected.POST("rate/user/:id", userHandler.Voting)
+	protected.POST("/user/:id/vote", userHandler.Voting)
+	// protected.POST("/user/:id", userHandler.Voting)
 	protected.GET("rate/user/:id", userHandler.GetUserRate) // should be only for admins?
 	// TODO: there should be voting handler that is allowed only for users that registered
 
@@ -26,6 +27,6 @@ func UserRoute(e *echo.Echo) {
 	e.GET("/user/:id", userHandler.GetUser)
 	e.GET("/users", userHandler.GetAllUsers)
 	e.POST("/login", userHandler.Login)
-	e.POST("/register", userHandler.UserRegistration)
+	e.POST("/register", userHandler.CreateUser)
 
 }

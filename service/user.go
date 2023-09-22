@@ -91,24 +91,24 @@ func (us *UserService) DeleteUser(userID int64) (error, int) {
 	return errors.New("user successfully deleted"), http.StatusOK
 }
 
-func (us *UserService) CreateToken(nickname, password string) (string, error, int) {
+func (us *UserService) CreateToken(user database.User) (string, error, int) {
 	cfg := config.LoadENV("config/.env")
 	cfg.ParseENV()
 
-	user, err := us.DbUser.FindByNicknameToGetUserPassword(nickname)
+	SelectedUser, err := us.DbUser.FindByNicknameToGetUserPassword(user.Nickname)
 	if err == sql.ErrNoRows {
 		return "", errors.New("you have no account and will be redirected to registration page"), http.StatusSeeOther
 	} else if err != nil {
 		return "", err, http.StatusInternalServerError
 	}
 
-	if hash.Verify(user.Password, password) != true {
+	if hash.Verify(user.Password, SelectedUser.Password) != true {
 		return "", errors.New("incorrect password"), http.StatusUnauthorized
 	}
 
 	claims := &config.JwtCustomClaims{
-		Name: user.Nickname,
-		Role: user.Role,
+		Name: SelectedUser.Nickname,
+		Role: SelectedUser.Role,
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(time.Now().Add(time.Hour * 24)),
 		},
@@ -121,24 +121,24 @@ func (us *UserService) CreateToken(nickname, password string) (string, error, in
 	return t, err, http.StatusOK
 }
 
-func (us *UserService) Registration(username, firstName, surName, password string) (int, error, int) {
-	user := database.User{
-		Nickname:  username,
-		FirstName: firstName,
-		LastName:  surName,
-		Password:  password,
-	}
-	if err := us.UserValidation(user); err != nil {
-		return 0, err, http.StatusBadRequest
-	}
-
-	userID, err := us.DbUser.InsertUser(user)
-	if err != nil {
-		return 0, err, http.StatusInternalServerError
-	}
-
-	return int(userID), err, http.StatusCreated
-}
+//func (us *UserService) Registration(username, firstName, surName, password string) (int, error, int) {
+//	user := database.User{
+//		Nickname:  username,
+//		FirstName: firstName,
+//		LastName:  surName,
+//		Password:  password,
+//	}
+//	if err := us.UserValidation(user); err != nil {
+//		return 0, err, http.StatusBadRequest
+//	}
+//
+//	userID, err := us.DbUser.InsertUser(user)
+//	if err != nil {
+//		return 0, err, http.StatusInternalServerError
+//	}
+//
+//	return int(userID), err, http.StatusCreated
+//}
 
 func (us *UserService) UserValidation(user database.User) error {
 
@@ -177,7 +177,7 @@ func (us *UserService) GetUserNameViaToken(user interface{}) string {
 
 func (us *UserService) Vote(userID int64, userName string) (error, int) {
 
-	userVote, voteTime, err := mapCreation(userName, userID)
+	userVote, voteTime, err := isUserAllowedToVote(userName, userID)
 	fmt.Println(voteTime)
 	fmt.Println(userVote)
 	if err != nil {
@@ -185,6 +185,7 @@ func (us *UserService) Vote(userID int64, userName string) (error, int) {
 	}
 
 	err = us.DbUser.VoteForUser(userID)
+	err = us.DbUser.WriteUserVotes(voteTime, userVote)
 	if err == sql.ErrNoRows {
 		return errors.New("there is no user with that ID"), http.StatusBadRequest
 	} else if err != nil {
@@ -228,7 +229,7 @@ func isUserAllowedToVoteForThatCandidate(userVote map[string][]int64, userName s
 	return true, nil
 }
 
-func mapCreation(userName string, voteID int64) (map[string][]int64, map[string]time.Time, error) {
+func isUserAllowedToVote(userName string, voteID int64) (map[string][]int64, map[string]time.Time, error) {
 
 	if _, ok := userVotes[userName]; ok {
 		isUserAllowed, errVoteAgain := isUserAllowedToVoteAgain(votesTime, userName)

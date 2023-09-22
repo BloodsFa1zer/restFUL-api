@@ -1,2 +1,2 @@
-ALTER TABLE Users
-DROP COLUMN rating;
+PRAGMA foreign_keys = OFF;
+drop table Voting
