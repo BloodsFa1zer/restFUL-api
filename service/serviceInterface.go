@@ -2,6 +2,7 @@ package service
 
 import (
 	"app3.1/database"
+	"time"
 )
 
 type UserServiceInterface interface {
@@ -14,9 +15,9 @@ type UserServiceInterface interface {
 	CreateToken(user database.User) (string, error, int)
 	GetUserNameViaToken(user interface{}) string
 	IsUserHavePermission(roleToCheck string, user interface{}) (bool, int)
-	// Registration(username, firstName, surName, password string) (int, error, int)
+	isUserAllowedToVote(userName string, voteID int) (map[string][]int, map[string]time.Time, error)
 	Vote(userID int64, userName string) (error, int)
 	GetUserRate(ID int64) (*database.UserRating, error, int)
-	//	isUserAllowedToVoteAgain(voteTime time.Time) bool
-	//	isUserAllowedToVoteForThatCandidate(userVote map[string][]int64, userName string, desiredID int64) bool
+	GetAllUsersRate() (*[]database.UserRating, error, int)
+	GetUserRateModerator(ID int64) (*database.UserRating, error, int)
 }
