@@ -19,9 +19,9 @@ func UserRoute(e *echo.Echo) {
 	protected.PUT("/user/:id", userHandler.EditUser)
 	protected.DELETE("/user/:id", userHandler.DeleteUser)
 	protected.POST("/user/:id/vote", userHandler.Voting)
-	// protected.POST("/user/:id", userHandler.Voting)
-	protected.GET("rate/user/:id", userHandler.GetUserRate) // should be only for admins?
-	// TODO: there should be voting handler that is allowed only for users that registered
+	// GetUserRateModerator() what route to use for it?
+	protected.GET("/user/:id/vote", userHandler.GetUserRate)
+	protected.GET("/users/vote", userHandler.GetUsersRate)
 
 	e.POST("/user", userHandler.CreateUser)
 	e.GET("/user/:id", userHandler.GetUser)
