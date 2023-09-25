@@ -4,7 +4,6 @@ import (
 	"app3.1/config"
 	"app3.1/hash"
 	"database/sql"
-	"fmt"
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/rs/zerolog/log"
 	"strconv"
@@ -84,7 +83,7 @@ func (db *UserDatabase) InsertUser(user User) (int64, error) {
 	formattedTime := time.Now().Format("2006.01.02 15:04")
 
 	sqlInsert := "INSERT INTO Users (nick_name, first_name, last_name, password, created_at) VALUES (?, ?, ?, ?, ?)"
-	//sqlInsert := "INSERT INTO Users (nick_name, first_name, last_name, password, created_at) VALUES (?, ?, ?, ?, ?)"
+	sqlInsertVoting := "INSERT INTO Voting (userID, user_nick) VALUES (?, ?)"
 
 	hashedPassword := hash.Hash(user.Password)
 
@@ -100,6 +99,12 @@ func (db *UserDatabase) InsertUser(user User) (int64, error) {
 		return 0, err
 	}
 
+	result, err = db.Connection.Exec(sqlInsertVoting, userID, user.Nickname)
+	if err != nil {
+		log.Warn().Err(err).Msg(" can`t insert user voting")
+		return 0, err
+	}
+
 	return userID, nil
 }
 
@@ -109,6 +114,7 @@ func (db *UserDatabase) UpdateUser(ID int64, user User) (int64, error) {
 
 	formattedTime := time.Now().Format("2006.01.02 15:04")
 	sqlUpdate := "UPDATE Users SET nick_name = ?, first_name = ?, last_name = ?, password = ?, updated_at = ? WHERE ID = ? AND deleted_at == 'NULL'"
+	sqlUpdateVoting := "UPDATE Users SET nick_name = ? WHERE ID = ?"
 
 	result, err := db.Connection.Exec(sqlUpdate, user.Nickname, user.FirstName, user.LastName, hashedPassword, formattedTime, ID)
 	if err != nil {
@@ -117,6 +123,23 @@ func (db *UserDatabase) UpdateUser(ID int64, user User) (int64, error) {
 	}
 
 	affectedRow, err := result.RowsAffected()
+	if err != nil {
+		log.Warn().Err(err).Msg(" error getting affected rows")
+		return 0, err
+	}
+
+	if affectedRow == 0 {
+		log.Warn().Msg(" no rows affected")
+		return 0, sql.ErrNoRows
+	}
+
+	result, err = db.Connection.Exec(sqlUpdateVoting, user.Nickname, ID)
+	if err != nil {
+		log.Warn().Err(err).Msg(" can`t update user`s data")
+		return 0, err
+	}
+
+	affectedRow, err = result.RowsAffected()
 	if err != nil {
 		log.Warn().Err(err).Msg(" error getting affected rows")
 		return 0, err
@@ -178,8 +201,15 @@ func (db *UserDatabase) DeleteUserByID(ID int64) error {
 	return nil
 }
 
+type UserRating struct {
+	ID        int64  `db:"ID" json:"ID,omitempty"`
+	Nickname  string `db:"user_nick" json:"Nickname" validate:"required"`
+	Rating    int    `db:"rating"   json:"Rating"`
+	UserVotes string `db:"votes" json:"Votes,omitempty"`
+	VoteTime  string `db:"vote_time" json:"VoteTime,omitempty"`
+}
+
 func (db *UserDatabase) VoteForUser(ID int64) error {
-	fmt.Println("ID:", ID)
 	sqlAddVote := "UPDATE Voting SET rating = rating + ? WHERE userID = ?"
 	result, err := db.Connection.Exec(sqlAddVote, 1, ID)
 
@@ -202,12 +232,27 @@ func (db *UserDatabase) VoteForUser(ID int64) error {
 	return nil
 }
 
-type UserRating struct {
-	ID        int64  `db:"ID" json:"ID,omitempty"`
-	Nickname  string `db:"user_nick" json:"Nickname" validate:"required"`
-	Rating    int    `db:"rating"   json:"Rating"`
-	UserVotes string `db:"votes" json:"Votes,omitempty"`
-	VoteTime  string `db:"vote_time" json:"VoteTime,omitempty"`
+func (db *UserDatabase) VoteAgainstUser(ID int64) error {
+	sqlAddVote := "UPDATE Voting SET rating = rating - ? WHERE userID = ?"
+	result, err := db.Connection.Exec(sqlAddVote, 1, ID)
+
+	if err != nil {
+		log.Warn().Err(err).Msg(" can`t vote for that user")
+		return err
+	}
+
+	affectedRow, err := result.RowsAffected()
+	if err != nil {
+		log.Warn().Err(err).Msg(" error getting affected rows")
+		return err
+	}
+
+	if affectedRow == 0 {
+		log.Warn().Msg(" no rows affected")
+		return sql.ErrNoRows
+	}
+
+	return nil
 }
 
 func (db *UserDatabase) GetUserRating(ID int64) (*UserRating, error) {
@@ -299,7 +344,7 @@ func (db *UserDatabase) WriteUserVotes(voteTime map[string]time.Time, userVote m
 	return nil
 }
 
-func (db *UserDatabase) CheckUserVotes(userName string) (*UserRating, error) {
+func (db *UserDatabase) GetUserVotes(userName string) (*UserRating, error) {
 	sqlSelectVotes := "SELECT votes, vote_time, userID FROM Voting WHERE user_nick = ?"
 
 	var rate UserRating

@@ -18,7 +18,8 @@ func UserRoute(e *echo.Echo) {
 	protected.Use(echojwt.WithConfig(config.NewConfig()))
 	protected.PUT("/user/:id", userHandler.EditUser)
 	protected.DELETE("/user/:id", userHandler.DeleteUser)
-	protected.POST("/user/:id/vote", userHandler.Voting)
+	protected.POST("/user/:id/vote", userHandler.PostVote)
+	protected.DELETE("/user/:id/vote", userHandler.DeleteVote)
 	// GetUserRateModerator() what route to use for it?
 	protected.GET("/user/:id/vote", userHandler.GetUserRate)
 	protected.GET("/users/vote", userHandler.GetUsersRate)

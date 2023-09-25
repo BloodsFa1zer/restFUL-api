@@ -159,13 +159,36 @@ func (us *UserService) GetUserNameViaToken(user interface{}) string {
 	return claims.Name
 }
 
-func (us *UserService) Vote(userID int64, userName string) (error, int) {
-	userVote, voteTime, err := us.isUserAllowedToVote(userName, int(userID))
+func (us *UserService) PostVote(userID int64, userName string) (error, int) {
+	userVote, voteTime, err := us.isUserAllowedToVoteFor(userName, int(userID))
 	if err != nil {
 		return err, http.StatusLocked
 	}
 
 	err = us.DbUser.VoteForUser(userID)
+	if err == sql.ErrNoRows {
+		return errors.New("there is no user with that ID"), http.StatusBadRequest
+	} else if err != nil {
+		return err, http.StatusInternalServerError
+	}
+
+	err = us.DbUser.WriteUserVotes(voteTime, userVote, userName)
+	if err == sql.ErrNoRows {
+		return errors.New("there is no user with that ID"), http.StatusBadRequest
+	} else if err != nil {
+		return err, http.StatusInternalServerError
+	}
+
+	return nil, http.StatusOK
+}
+
+func (us *UserService) DeleteVote(userID int64, userName string) (error, int) {
+	userVote, voteTime, err := us.isUserAllowedToVoteAgainst(userName, int(userID))
+	if err != nil {
+		return err, http.StatusLocked
+	}
+
+	err = us.DbUser.VoteAgainstUser(userID)
 	if err == sql.ErrNoRows {
 		return errors.New("there is no user with that ID"), http.StatusBadRequest
 	} else if err != nil {
@@ -215,12 +238,11 @@ func (us *UserService) GetAllUsersRate() (*[]database.UserRating, error, int) {
 	return userRating, nil, http.StatusOK
 }
 
-func (us *UserService) isUserAllowedToVote(userName string, voteID int) (map[string][]int, map[string]time.Time, error) {
-	// TODO: check user votes from db, and add check which ensures that user does not vote for himself
+func (us *UserService) isUserAllowedToVoteFor(userName string, voteID int) (map[string][]int, map[string]time.Time, error) {
 	votesTime[userName] = time.Now()
 	userVotes[userName] = []int{}
 
-	user, err := us.DbUser.CheckUserVotes(userName)
+	user, err := us.DbUser.GetUserVotes(userName)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -234,16 +256,16 @@ func (us *UserService) isUserAllowedToVote(userName string, voteID int) (map[str
 		return nil, nil, errors.New(" you are not allowed to vote for yourself")
 	}
 
-	isUserAllowed := true
+	isUserAllowedTime := true
 	errVoteAgain := error(nil)
 	if !timeWhenUserVotes.IsZero() {
-		isUserAllowed, errVoteAgain = isUserAllowedToVoteAgain(timeWhenUserVotes)
+		isUserAllowedTime, errVoteAgain = isUserAllowedToVoteAgain(timeWhenUserVotes)
 	}
 	timeWhenUserVotes = time.Now()
 
 	isAllowed, errVoteTime := isUserAllowedToVoteForThatCandidate(votesOfUser, voteID)
 
-	if isUserAllowed && isAllowed {
+	if isUserAllowedTime && isAllowed {
 		for _, num := range votesOfUser {
 			userVotes[userName] = append(userVotes[userName], num)
 		}
@@ -263,10 +285,48 @@ func (us *UserService) isUserAllowedToVote(userName string, voteID int) (map[str
 	return userVotes, votesTime, nil
 }
 
-func isUserAllowedToVoteAgain(timeWhenUserVotes time.Time) (bool, error) {
-	oneHourAfter := timeWhenUserVotes.Add(1 * time.Hour)
-	duration := oneHourAfter.Sub(timeWhenUserVotes)
+func (us *UserService) isUserAllowedToVoteAgainst(userName string, voteID int) (map[string][]int, map[string]time.Time, error) {
+	votesTime[userName] = time.Now()
+	userVotes[userName] = []int{}
 
+	user, err := us.DbUser.GetUserVotes(userName)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	votesOfUser, timeWhenUserVotes, err := castUserDataToUseInMap(user.UserVotes, user.VoteTime)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	isUserAllowed := true
+	errVoteAgain := error(nil)
+	if !timeWhenUserVotes.IsZero() {
+		isUserAllowed, errVoteAgain = isUserAllowedToVoteAgain(timeWhenUserVotes)
+	}
+	timeWhenUserVotes = time.Now()
+
+	if isUserAllowed {
+		for _, num := range votesOfUser {
+			if voteID != num {
+				userVotes[userName] = append(userVotes[userName], num)
+			}
+		}
+		votesTime[userName] = timeWhenUserVotes
+	} else {
+		if errVoteAgain != nil {
+			return nil, votesTime, errVoteAgain
+		}
+	}
+
+	fmt.Println("votesFromMap:", userVotes[userName])
+	fmt.Println("time:", votesTime[userName])
+
+	return userVotes, votesTime, nil
+}
+
+func isUserAllowedToVoteAgain(timeWhenUserVotes time.Time) (bool, error) {
+	duration := time.Now().Sub(timeWhenUserVotes)
 	if duration <= time.Hour {
 		return false, errors.New("user only allowed to vote once in an hour, your last vote was at:" + timeWhenUserVotes.Format("2006.01.02 15:04"))
 	}
@@ -285,9 +345,10 @@ func isUserAllowedToVoteForThatCandidate(votesOfUser []int, desiredID int) (bool
 }
 
 func castUserDataToUseInMap(userVotes, timeWhenUserVote string) ([]int, time.Time, error) {
-	numStrParts := strings.Split(userVotes, ", ")
+
 	voteTime := time.Time{}
 	var votes []int
+	numStrParts := strings.Split(userVotes, ", ")
 	for _, numStrPart := range numStrParts {
 		num, err := strconv.Atoi(numStrPart)
 		if err != nil {

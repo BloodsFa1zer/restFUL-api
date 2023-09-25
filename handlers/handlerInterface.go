@@ -15,5 +15,6 @@ type UserHandlersInterface interface {
 	GetUsersRate(c echo.Context) error
 	GetUserRate(c echo.Context) error
 	GetUserRateModerator(c echo.Context) error
-	Voting(c echo.Context) error
+	PostVote(c echo.Context) error
+	DeleteVote(c echo.Context) error
 }

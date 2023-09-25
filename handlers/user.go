@@ -127,7 +127,7 @@ func (uh *UserHandler) Login(c echo.Context) error {
 }
 
 // to Vote user need to register or login and then using his Bearer Token to vote, by POST(/user/:id)
-func (uh *UserHandler) Voting(c echo.Context) error {
+func (uh *UserHandler) PostVote(c echo.Context) error {
 	ID := c.Param("id")
 	userID, err := strconv.Atoi(ID)
 	if err != nil {
@@ -141,7 +141,29 @@ func (uh *UserHandler) Voting(c echo.Context) error {
 		return c.JSON(http.StatusUnauthorized, response.UserResponse{Status: http.StatusUnauthorized, Message: "error", Data: &echo.Map{"data": "cannot find that user"}})
 	}
 
-	err, respStatus := uh.userService.Vote(int64(userID), userName)
+	err, respStatus := uh.userService.PostVote(int64(userID), userName)
+	if err != nil {
+		return c.JSON(respStatus, response.UserResponse{Status: respStatus, Message: "error", Data: &echo.Map{"data": err.Error()}})
+	}
+
+	return c.JSON(respStatus, response.UserResponse{Status: respStatus, Message: "success", Data: &echo.Map{"data": "you are successfully voted"}})
+}
+
+func (uh *UserHandler) DeleteVote(c echo.Context) error {
+	ID := c.Param("id")
+	userID, err := strconv.Atoi(ID)
+	if err != nil {
+		return c.JSON(http.StatusNotFound, response.UserResponse{Status: http.StatusNotFound, Message: "error", Data: &echo.Map{"data": err.Error()}})
+	}
+
+	user := c.Get("user")
+
+	userName := uh.userService.GetUserNameViaToken(user)
+	if userName == "" {
+		return c.JSON(http.StatusUnauthorized, response.UserResponse{Status: http.StatusUnauthorized, Message: "error", Data: &echo.Map{"data": "cannot find that user"}})
+	}
+
+	err, respStatus := uh.userService.DeleteVote(int64(userID), userName)
 	if err != nil {
 		return c.JSON(respStatus, response.UserResponse{Status: respStatus, Message: "error", Data: &echo.Map{"data": err.Error()}})
 	}

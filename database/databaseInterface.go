@@ -12,7 +12,8 @@ type DbInterface interface {
 	GetUserRating(ID int64) (*UserRating, error)
 	GetAllUsersRating() (*[]UserRating, error)
 	VoteForUser(ID int64) error
+	VoteAgainstUser(ID int64) error
 	WriteUserVotes(voteTime map[string]time.Time, userVotes map[string][]int, userName string) error
-	CheckUserVotes(userName string) (*UserRating, error)
+	GetUserVotes(userName string) (*UserRating, error)
 	GetModeratorUserRating(ID int64) (*UserRating, error)
 }
