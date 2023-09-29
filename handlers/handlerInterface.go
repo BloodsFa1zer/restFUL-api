@@ -12,9 +12,9 @@ type UserHandlersInterface interface {
 	GetAllUsers(c echo.Context) error
 	Login(c echo.Context) error
 	isUserHavePermissionToActions(roleToFind string, c echo.Context) (bool, int)
-	GetUsersRate(c echo.Context) error
-	GetUserRate(c echo.Context) error
-	GetUserRateModerator(c echo.Context) error
+	// GetUsersRate(c echo.Context) error
+	// GetUserRate(c echo.Context) error
+	// GetUserRateModerator(c echo.Context) error
 	PostVote(c echo.Context) error
-	DeleteVote(c echo.Context) error
+	//DeleteVote(c echo.Context) error
 }

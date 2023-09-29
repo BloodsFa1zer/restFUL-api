@@ -1,14 +1,11 @@
 PRAGMA foreign_keys = ON;
 
 CREATE TABLE IF NOT EXISTS Voting (
-    userID integer primary key,
-    user_nick text,
-    votes text DEFAULT '0',
-    rating integer DEFAULT 0,
-    vote_time text DEFAULT '0',
-    FOREIGN KEY (userID) REFERENCES Users(ID)
+    user_id INTEGER,
+    voter_id INTEGER,
+    updated_at TEXT DEFAULT '0',
+    FOREIGN KEY (user_id) REFERENCES Users(ID),
+    FOREIGN KEY (voter_id) REFERENCES Users(ID)
 );
 
-INSERT INTO Voting (userID, user_nick)
-SELECT ID, nick_name FROM Users
-WHERE deleted_at = 'NULL';
+SELECT * FROM Voting WHERE user_id = 11;

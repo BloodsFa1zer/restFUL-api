@@ -1,7 +1,5 @@
 package database
 
-import "time"
-
 type DbInterface interface {
 	FindByID(ID int64) (*User, error)
 	InsertUser(user User) (int64, error)
@@ -9,11 +7,7 @@ type DbInterface interface {
 	FindUsers() (*[]User, error)
 	DeleteUserByID(ID int64) error
 	FindByNicknameToGetUserPassword(nickname string) (*User, error)
-	GetUserRating(ID int64) (*UserRating, error)
-	GetAllUsersRating() (*[]UserRating, error)
-	VoteForUser(ID int64) error
-	VoteAgainstUser(ID int64) error
-	WriteUserVotes(voteTime map[string]time.Time, userVotes map[string][]int, userName string) error
-	GetUserVotes(userName string) (*UserRating, error)
-	GetModeratorUserRating(ID int64) (*UserRating, error)
+	CountUserRate(userID int64) (int, error)
+	WriteUserVotes(userID, voterID int) error
+	GetUserVotes(userID, voterID int64) (string, error)
 }

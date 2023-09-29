@@ -5,6 +5,7 @@ import (
 	"app3.1/response"
 	"app3.1/service"
 	"errors"
+	"fmt"
 	"github.com/labstack/echo/v4"
 	"net/http"
 	"strconv"
@@ -136,12 +137,12 @@ func (uh *UserHandler) PostVote(c echo.Context) error {
 
 	user := c.Get("user")
 
-	userName := uh.userService.GetUserNameViaToken(user)
-	if userName == "" {
-		return c.JSON(http.StatusUnauthorized, response.UserResponse{Status: http.StatusUnauthorized, Message: "error", Data: &echo.Map{"data": "cannot find that user"}})
+	voterID, err := uh.userService.GetUserIDViaToken(user)
+	if err != nil {
+		return c.JSON(http.StatusUnauthorized, response.UserResponse{Status: http.StatusUnauthorized, Message: "error", Data: &echo.Map{"data": err.Error()}})
 	}
-
-	err, respStatus := uh.userService.PostVote(int64(userID), userName)
+	fmt.Println("voterID:", voterID)
+	err, respStatus := uh.userService.PostVote(userID, int(voterID))
 	if err != nil {
 		return c.JSON(respStatus, response.UserResponse{Status: respStatus, Message: "error", Data: &echo.Map{"data": err.Error()}})
 	}
@@ -149,71 +150,27 @@ func (uh *UserHandler) PostVote(c echo.Context) error {
 	return c.JSON(respStatus, response.UserResponse{Status: respStatus, Message: "success", Data: &echo.Map{"data": "you are successfully voted"}})
 }
 
-func (uh *UserHandler) DeleteVote(c echo.Context) error {
-	ID := c.Param("id")
-	userID, err := strconv.Atoi(ID)
-	if err != nil {
-		return c.JSON(http.StatusNotFound, response.UserResponse{Status: http.StatusNotFound, Message: "error", Data: &echo.Map{"data": err.Error()}})
-	}
-
-	user := c.Get("user")
-
-	userName := uh.userService.GetUserNameViaToken(user)
-	if userName == "" {
-		return c.JSON(http.StatusUnauthorized, response.UserResponse{Status: http.StatusUnauthorized, Message: "error", Data: &echo.Map{"data": "cannot find that user"}})
-	}
-
-	err, respStatus := uh.userService.DeleteVote(int64(userID), userName)
-	if err != nil {
-		return c.JSON(respStatus, response.UserResponse{Status: respStatus, Message: "error", Data: &echo.Map{"data": err.Error()}})
-	}
-
-	return c.JSON(respStatus, response.UserResponse{Status: respStatus, Message: "success", Data: &echo.Map{"data": "you are successfully voted"}})
-}
-
-func (uh *UserHandler) GetUserRate(c echo.Context) error {
-	ID := c.Param("id")
-	userID, err := strconv.Atoi(ID)
-	if err != nil {
-		return c.JSON(http.StatusNotFound, response.UserResponse{Status: http.StatusNotFound, Message: "error", Data: &echo.Map{"data": err.Error()}})
-	}
-
-	userRate, err, respStatus := uh.userService.GetUserRate(int64(userID))
-	if err != nil {
-		return c.JSON(respStatus, response.UserResponse{Status: respStatus, Message: "error", Data: &echo.Map{"data": err.Error()}})
-	}
-
-	return c.JSON(respStatus, response.UserResponse{Status: respStatus, Message: "success", Data: &echo.Map{"data": userRate}})
-}
-
-func (uh *UserHandler) GetUsersRate(c echo.Context) error {
-
-	userRate, err, respStatus := uh.userService.GetAllUsersRate()
-	if err != nil {
-		return c.JSON(respStatus, response.UserResponse{Status: respStatus, Message: "error", Data: &echo.Map{"data": err.Error()}})
-	}
-
-	return c.JSON(respStatus, response.UserResponse{Status: respStatus, Message: "success", Data: &echo.Map{"data": userRate}})
-}
-
-func (uh *UserHandler) GetUserRateModerator(c echo.Context) error {
-	if permission, respStatus := uh.isUserHavePermissionToActions(userRole, c); permission {
-		return c.JSON(respStatus, response.UserResponse{Status: respStatus, Message: "error", Data: &echo.Map{"data": "that user has no access to admin or moderator actions"}})
-	}
-
-	ID := c.Param("id")
-	userID, err := strconv.Atoi(ID)
-	if err != nil {
-		return c.JSON(http.StatusNotFound, response.UserResponse{Status: http.StatusNotFound, Message: "error", Data: &echo.Map{"data": err.Error()}})
-	}
-
-	userRate, err, respStatus := uh.userService.GetUserRateModerator(int64(userID))
-	if err != nil {
-		return c.JSON(respStatus, response.UserResponse{Status: respStatus, Message: "error", Data: &echo.Map{"data": err.Error()}})
-	}
-
-	return c.JSON(respStatus, response.UserResponse{Status: respStatus, Message: "success", Data: &echo.Map{"data": userRate}})
-}
+//func (uh *UserHandler) DeleteVote(c echo.Context) error {
+//	ID := c.Param("id")
+//	userID, err := strconv.Atoi(ID)
+//	if err != nil {
+//		return c.JSON(http.StatusNotFound, response.UserResponse{Status: http.StatusNotFound, Message: "error", Data: &echo.Map{"data": err.Error()}})
+//	}
+//
+//	user := c.Get("user")
+//
+//	voterID, err := uh.userService.GetUserIDViaToken(user)
+//	if err != nil {
+//		return c.JSON(http.StatusUnauthorized, response.UserResponse{Status: http.StatusUnauthorized, Message: "error", Data: &echo.Map{"data": err.Error()}})
+//	}
+//
+//	err, respStatus := uh.userService.DeleteVote(userID, int(voterID))
+//	if err != nil {
+//		return c.JSON(respStatus, response.UserResponse{Status: respStatus, Message: "error", Data: &echo.Map{"data": err.Error()}})
+//	}
+//
+//	return c.JSON(respStatus, response.UserResponse{Status: respStatus, Message: "success", Data: &echo.Map{"data": "you are successfully voted"}})
+//}
 
 func (uh *UserHandler) isUserHavePermissionToActions(roleToFind string, c echo.Context) (bool, int) {
 	user := c.Get("user")

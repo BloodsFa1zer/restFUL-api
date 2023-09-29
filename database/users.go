@@ -6,7 +6,6 @@ import (
 	"database/sql"
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/rs/zerolog/log"
-	"strconv"
 	"time"
 )
 
@@ -20,6 +19,7 @@ type User struct {
 	CreatedAt string  `db:"created_at" json:"CreatedAt"`
 	UpdatedAt *string `db:"updated_at" json:"UpdatedAt,omitempty"`
 	DeletedAt *string `db:"deleted_at" json:"DeletedAt,omitempty"`
+	Rating    int     `db:"rating" json:"Rating"`
 }
 
 type UserDatabase struct {
@@ -42,12 +42,19 @@ func NewUserDatabase() *UserDatabase {
 
 func (db *UserDatabase) FindByID(ID int64) (*User, error) {
 	sqlSelect := `SELECT * FROM Users WHERE ID = ? AND deleted_at == 'NULL'`
+	userRate, err := db.CountUserRate(ID)
+	if err == sql.ErrNoRows {
+		userRate = 0
+	} else if err != nil {
+		return nil, err
+	}
 	var selectedUser User
 
 	row := db.Connection.QueryRow(sqlSelect, ID)
-	err := row.Scan(&selectedUser.ID, &selectedUser.Nickname, &selectedUser.FirstName,
+	err = row.Scan(&selectedUser.ID, &selectedUser.Nickname, &selectedUser.FirstName,
 		&selectedUser.LastName, &selectedUser.Password, &selectedUser.CreatedAt,
 		&selectedUser.UpdatedAt, &selectedUser.DeletedAt, &selectedUser.Role)
+	selectedUser.Rating = userRate
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return nil, err
@@ -83,7 +90,6 @@ func (db *UserDatabase) InsertUser(user User) (int64, error) {
 	formattedTime := time.Now().Format("2006.01.02 15:04")
 
 	sqlInsert := "INSERT INTO Users (nick_name, first_name, last_name, password, created_at) VALUES (?, ?, ?, ?, ?)"
-	sqlInsertVoting := "INSERT INTO Voting (userID, user_nick) VALUES (?, ?)"
 
 	hashedPassword := hash.Hash(user.Password)
 
@@ -99,12 +105,6 @@ func (db *UserDatabase) InsertUser(user User) (int64, error) {
 		return 0, err
 	}
 
-	result, err = db.Connection.Exec(sqlInsertVoting, userID, user.Nickname)
-	if err != nil {
-		log.Warn().Err(err).Msg(" can`t insert user voting")
-		return 0, err
-	}
-
 	return userID, nil
 }
 
@@ -114,7 +114,6 @@ func (db *UserDatabase) UpdateUser(ID int64, user User) (int64, error) {
 
 	formattedTime := time.Now().Format("2006.01.02 15:04")
 	sqlUpdate := "UPDATE Users SET nick_name = ?, first_name = ?, last_name = ?, password = ?, updated_at = ? WHERE ID = ? AND deleted_at == 'NULL'"
-	sqlUpdateVoting := "UPDATE Users SET nick_name = ? WHERE ID = ?"
 
 	result, err := db.Connection.Exec(sqlUpdate, user.Nickname, user.FirstName, user.LastName, hashedPassword, formattedTime, ID)
 	if err != nil {
@@ -123,23 +122,6 @@ func (db *UserDatabase) UpdateUser(ID int64, user User) (int64, error) {
 	}
 
 	affectedRow, err := result.RowsAffected()
-	if err != nil {
-		log.Warn().Err(err).Msg(" error getting affected rows")
-		return 0, err
-	}
-
-	if affectedRow == 0 {
-		log.Warn().Msg(" no rows affected")
-		return 0, sql.ErrNoRows
-	}
-
-	result, err = db.Connection.Exec(sqlUpdateVoting, user.Nickname, ID)
-	if err != nil {
-		log.Warn().Err(err).Msg(" can`t update user`s data")
-		return 0, err
-	}
-
-	affectedRow, err = result.RowsAffected()
 	if err != nil {
 		log.Warn().Err(err).Msg(" error getting affected rows")
 		return 0, err
@@ -202,16 +184,14 @@ func (db *UserDatabase) DeleteUserByID(ID int64) error {
 }
 
 type UserRating struct {
-	ID        int64  `db:"ID" json:"ID,omitempty"`
-	Nickname  string `db:"user_nick" json:"Nickname" validate:"required"`
-	Rating    int    `db:"rating"   json:"Rating"`
-	UserVotes string `db:"votes" json:"Votes,omitempty"`
-	VoteTime  string `db:"vote_time" json:"VoteTime,omitempty"`
+	UserID   int64  `db:"user_id" json:"ID,omitempty"`
+	VoterID  int64  `db:"voter_id" json:"Votes,omitempty"`
+	VoteTime string `db:"updated_at" json:"VoteTime,omitempty"`
 }
 
-func (db *UserDatabase) VoteForUser(ID int64) error {
-	sqlAddVote := "UPDATE Voting SET rating = rating + ? WHERE userID = ?"
-	result, err := db.Connection.Exec(sqlAddVote, 1, ID)
+func (db *UserDatabase) WriteUserVotes(userID, voterID int) error {
+	sqlInsertVotes := "INSERT INTO Voting (user_id, voter_id, updated_at) VALUES (?, ?, ?)"
+	result, err := db.Connection.Exec(sqlInsertVotes, userID, voterID, time.Now())
 
 	if err != nil {
 		log.Warn().Err(err).Msg(" can`t vote for that user")
@@ -232,133 +212,41 @@ func (db *UserDatabase) VoteForUser(ID int64) error {
 	return nil
 }
 
-func (db *UserDatabase) VoteAgainstUser(ID int64) error {
-	sqlAddVote := "UPDATE Voting SET rating = rating - ? WHERE userID = ?"
-	result, err := db.Connection.Exec(sqlAddVote, 1, ID)
-
-	if err != nil {
-		log.Warn().Err(err).Msg(" can`t vote for that user")
-		return err
-	}
-
-	affectedRow, err := result.RowsAffected()
-	if err != nil {
-		log.Warn().Err(err).Msg(" error getting affected rows")
-		return err
-	}
-
-	if affectedRow == 0 {
-		log.Warn().Msg(" no rows affected")
-		return sql.ErrNoRows
-	}
-
-	return nil
-}
-
-func (db *UserDatabase) GetUserRating(ID int64) (*UserRating, error) {
-	sqlGetRating := "SELECT user_nick, rating FROM Voting WHERE userID = ?"
-	var userRating UserRating
-
-	row := db.Connection.QueryRow(sqlGetRating, ID)
-	err := row.Scan(&userRating.Nickname, &userRating.Rating)
+func (db *UserDatabase) GetUserVotes(userID, voterID int64) (string, error) {
+	sqlSelectVotes := "SELECT updated_at FROM Voting WHERE user_id = ? AND voter_id = ?"
+	voteTime := ""
+	row := db.Connection.QueryRow(sqlSelectVotes, userID, voterID)
+	err := row.Scan(&voteTime)
 	if err != nil {
 		if err == sql.ErrNoRows {
-			return nil, err
+			return "", err
 		}
 		log.Warn().Err(err).Msg(" can`t find user")
-		return nil, err
+		return "", err
 	}
 
-	return &userRating, nil
+	return voteTime, nil
 }
 
-func (db *UserDatabase) GetAllUsersRating() (*[]UserRating, error) {
-	sqlGetRating := "SELECT user_nick, rating FROM Voting"
-	var usersRating []UserRating
-
-	rows, err := db.Connection.Query(sqlGetRating)
+func (db *UserDatabase) CountUserRate(userID int64) (int, error) {
+	sqlSelectVotes := "SELECT * FROM Voting WHERE user_id = ?"
+	result, err := db.Connection.Exec(sqlSelectVotes, userID)
 	if err != nil {
-		log.Warn().Err(err).Msg(" can`t find users")
-	}
-	defer rows.Close()
-
-	for rows.Next() {
-		var singleUserRating UserRating
-		err := rows.Scan(&singleUserRating.Nickname, &singleUserRating.Rating)
-
-		if err != nil {
-			return nil, err
-		}
-		usersRating = append(usersRating, singleUserRating)
-	}
-
-	return &usersRating, nil
-}
-
-// how to name it? if the user is moderator or admin it gives a permission to the full data, such as time since last vote
-func (db *UserDatabase) GetModeratorUserRating(ID int64) (*UserRating, error) {
-	sqlGetRating := "SELECT * FROM Voting WHERE userID = ?"
-	var userRating UserRating
-
-	row := db.Connection.QueryRow(sqlGetRating, ID)
-	err := row.Scan(&userRating.ID, &userRating.Nickname, &userRating.UserVotes, &userRating.Rating, &userRating.VoteTime, ID)
-	if err != nil {
-		if err == sql.ErrNoRows {
-			return nil, err
-		}
-		log.Warn().Err(err).Msg(" can`t find user")
-		return nil, err
-	}
-
-	return &userRating, nil
-}
-
-func (db *UserDatabase) WriteUserVotes(voteTime map[string]time.Time, userVote map[string][]int, userName string) error {
-	sqlInsertVotes := "UPDATE Voting SET (votes, vote_time) = (?, ?) WHERE user_nick = ?"
-	res := ""
-	for i, num := range userVote[userName] {
-		if i > 0 {
-			res += ", "
-		}
-		res += strconv.Itoa(num)
-	}
-
-	result, err := db.Connection.Exec(sqlInsertVotes, res, voteTime[userName], userName)
-
-	if err != nil {
-		log.Warn().Err(err).Msg(" can`t vote for that user")
-		return err
+		log.Warn().Err(err).Msg(" can`t select that user votes")
+		return 0, err
 	}
 
 	affectedRow, err := result.RowsAffected()
 	if err != nil {
 		log.Warn().Err(err).Msg(" error getting affected rows")
-		return err
+		return 0, err
 	}
 
 	if affectedRow == 0 {
 		log.Warn().Msg(" no rows affected")
-		return sql.ErrNoRows
+		return 0, sql.ErrNoRows
 	}
 
-	return nil
-}
+	return int(affectedRow), nil
 
-func (db *UserDatabase) GetUserVotes(userName string) (*UserRating, error) {
-	sqlSelectVotes := "SELECT votes, vote_time, userID FROM Voting WHERE user_nick = ?"
-
-	var rate UserRating
-
-	row := db.Connection.QueryRow(sqlSelectVotes, userName)
-	err := row.Scan(&rate.UserVotes, &rate.VoteTime, &rate.ID)
-	if err != nil {
-		if err == sql.ErrNoRows {
-			// Handle "not found" scenario
-			return nil, err
-		}
-		log.Warn().Err(err).Msg(" can`t find user votes")
-		return nil, err
-	}
-
-	return &rate, nil
 }

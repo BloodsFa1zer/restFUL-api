@@ -10,8 +10,6 @@ import (
 	"github.com/go-playground/validator/v10"
 	"github.com/golang-jwt/jwt/v5"
 	"net/http"
-	"strconv"
-	"strings"
 	"time"
 )
 
@@ -19,9 +17,6 @@ type UserService struct {
 	DbUser   database.DbInterface
 	validate *validator.Validate
 }
-
-var userVotes = make(map[string][]int)
-var votesTime = make(map[string]time.Time)
 
 func NewUserService(DbUser database.DbInterface, validate *validator.Validate) *UserService {
 	return &UserService{DbUser: DbUser, validate: validate}
@@ -109,6 +104,7 @@ func (us *UserService) CreateToken(user database.User) (string, error, int) {
 	}
 
 	claims := &config.JwtCustomClaims{
+		ID:   SelectedUser.ID,
 		Name: SelectedUser.Nickname,
 		Role: SelectedUser.Role,
 		RegisteredClaims: jwt.RegisteredClaims{
@@ -145,34 +141,29 @@ func (us *UserService) IsUserHavePermission(roleToCheck string, user interface{}
 	return claims.Role == roleToCheck, http.StatusOK
 }
 
-func (us *UserService) GetUserNameViaToken(user interface{}) string {
+func (us *UserService) GetUserIDViaToken(user interface{}) (int64, error) {
 	userToken, ok := user.(*jwt.Token)
 	if !userToken.Valid {
-		return ""
+		return 0, errors.New("token is invalid")
 	}
 	if !ok {
-		return ""
+		return 0, errors.New("no such token found")
 	}
+
 	claims := userToken.Claims.(*config.JwtCustomClaims)
 	fmt.Println(claims.Name)
+	fmt.Println(claims.ID)
 
-	return claims.Name
+	return claims.ID, nil
 }
 
-func (us *UserService) PostVote(userID int64, userName string) (error, int) {
-	userVote, voteTime, err := us.isUserAllowedToVoteFor(userName, int(userID))
+func (us *UserService) PostVote(userID, voterID int) (error, int) {
+	err := us.isUserAllowedToVote(voterID, userID)
 	if err != nil {
 		return err, http.StatusLocked
 	}
 
-	err = us.DbUser.VoteForUser(userID)
-	if err == sql.ErrNoRows {
-		return errors.New("there is no user with that ID"), http.StatusBadRequest
-	} else if err != nil {
-		return err, http.StatusInternalServerError
-	}
-
-	err = us.DbUser.WriteUserVotes(voteTime, userVote, userName)
+	err = us.DbUser.WriteUserVotes(userID, voterID)
 	if err == sql.ErrNoRows {
 		return errors.New("there is no user with that ID"), http.StatusBadRequest
 	} else if err != nil {
@@ -182,20 +173,13 @@ func (us *UserService) PostVote(userID int64, userName string) (error, int) {
 	return nil, http.StatusOK
 }
 
-func (us *UserService) DeleteVote(userID int64, userName string) (error, int) {
-	userVote, voteTime, err := us.isUserAllowedToVoteAgainst(userName, int(userID))
+func (us *UserService) DeleteVote(userID, voterID int) (error, int) {
+	err := us.isUserAllowedToVote(voterID, userID)
 	if err != nil {
 		return err, http.StatusLocked
 	}
 
-	err = us.DbUser.VoteAgainstUser(userID)
-	if err == sql.ErrNoRows {
-		return errors.New("there is no user with that ID"), http.StatusBadRequest
-	} else if err != nil {
-		return err, http.StatusInternalServerError
-	}
-
-	err = us.DbUser.WriteUserVotes(voteTime, userVote, userName)
+	err = us.DbUser.WriteUserVotes(userID, voterID)
 	if err == sql.ErrNoRows {
 		return errors.New("there is no user with that ID"), http.StatusBadRequest
 	} else if err != nil {
@@ -205,166 +189,65 @@ func (us *UserService) DeleteVote(userID int64, userName string) (error, int) {
 	return nil, http.StatusOK
 }
 
-func (us *UserService) GetUserRateModerator(ID int64) (*database.UserRating, error, int) {
-	userRating, err := us.DbUser.GetModeratorUserRating(ID)
+func (us *UserService) isUserAllowedToVote(voterID, userID int) error {
+	isAllowedCandidate := false
+
+	voteTime, err := us.DbUser.GetUserVotes(int64(voterID), int64(userID))
 	if err == sql.ErrNoRows {
-		return nil, errors.New("there is no user with that ID"), http.StatusBadRequest
+		isAllowedCandidate = true
+		voteTime = "0"
 	} else if err != nil {
-		return nil, err, http.StatusInternalServerError
+		return err
+	}
+	fmt.Println("vt:", voteTime)
+	if voteTime == "0" {
+		return nil
 	}
 
-	return userRating, nil, http.StatusOK
-}
-
-func (us *UserService) GetUserRate(ID int64) (*database.UserRating, error, int) {
-	userRating, err := us.DbUser.GetUserRating(ID)
-	if err == sql.ErrNoRows {
-		return nil, errors.New("there is no user with that ID"), http.StatusBadRequest
-	} else if err != nil {
-		return nil, err, http.StatusInternalServerError
-	}
-
-	return userRating, nil, http.StatusOK
-}
-
-func (us *UserService) GetAllUsersRate() (*[]database.UserRating, error, int) {
-	userRating, err := us.DbUser.GetAllUsersRating()
-	if err == sql.ErrNoRows {
-		return nil, errors.New("there is no user with that ID"), http.StatusBadRequest
-	} else if err != nil {
-		return nil, err, http.StatusInternalServerError
-	}
-
-	return userRating, nil, http.StatusOK
-}
-
-func (us *UserService) isUserAllowedToVoteFor(userName string, voteID int) (map[string][]int, map[string]time.Time, error) {
-	votesTime[userName] = time.Now()
-	userVotes[userName] = []int{}
-
-	user, err := us.DbUser.GetUserVotes(userName)
+	timeWhenUserVotes, err := castUserDataToUseInMap(voteTime)
 	if err != nil {
-		return nil, nil, err
+		return err
 	}
 
-	votesOfUser, timeWhenUserVotes, err := castUserDataToUseInMap(user.UserVotes, user.VoteTime)
-	if err != nil {
-		return nil, nil, err
+	if voterID == userID {
+		return errors.New(" you are not allowed to vote for yourself")
 	}
 
-	if int(user.ID) == voteID {
-		return nil, nil, errors.New(" you are not allowed to vote for yourself")
-	}
-
-	isUserAllowedTime := true
-	errVoteAgain := error(nil)
-	if !timeWhenUserVotes.IsZero() {
-		isUserAllowedTime, errVoteAgain = isUserAllowedToVoteAgain(timeWhenUserVotes)
-	}
-	timeWhenUserVotes = time.Now()
-
-	isAllowed, errVoteTime := isUserAllowedToVoteForThatCandidate(votesOfUser, voteID)
-
-	if isUserAllowedTime && isAllowed {
-		for _, num := range votesOfUser {
-			userVotes[userName] = append(userVotes[userName], num)
-		}
-		userVotes[userName] = append(userVotes[userName], voteID)
-		votesTime[userName] = timeWhenUserVotes
-	} else {
-		if errVoteAgain != nil {
-			return nil, votesTime, errVoteAgain
-		} else {
-			return nil, votesTime, errVoteTime
-		}
-	}
-
-	fmt.Println("votesFromMap:", userVotes[userName])
-	fmt.Println("time:", votesTime[userName])
-
-	return userVotes, votesTime, nil
-}
-
-func (us *UserService) isUserAllowedToVoteAgainst(userName string, voteID int) (map[string][]int, map[string]time.Time, error) {
-	votesTime[userName] = time.Now()
-	userVotes[userName] = []int{}
-
-	user, err := us.DbUser.GetUserVotes(userName)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	votesOfUser, timeWhenUserVotes, err := castUserDataToUseInMap(user.UserVotes, user.VoteTime)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	isUserAllowed := true
-	errVoteAgain := error(nil)
-	if !timeWhenUserVotes.IsZero() {
-		isUserAllowed, errVoteAgain = isUserAllowedToVoteAgain(timeWhenUserVotes)
-	}
-	timeWhenUserVotes = time.Now()
-
-	if isUserAllowed {
-		for _, num := range votesOfUser {
-			if voteID != num {
-				userVotes[userName] = append(userVotes[userName], num)
+	if isAllowedCandidate {
+		if !timeWhenUserVotes.IsZero() {
+			errVoteTime := isUserAllowedToVoteAgainAfterOneHourTime(timeWhenUserVotes)
+			if errVoteTime != nil {
+				return errVoteTime
 			}
 		}
-		votesTime[userName] = timeWhenUserVotes
 	} else {
-		if errVoteAgain != nil {
-			return nil, votesTime, errVoteAgain
-		}
+		return errors.New("user cannot vote for the same candidate twice")
 	}
 
-	fmt.Println("votesFromMap:", userVotes[userName])
-	fmt.Println("time:", votesTime[userName])
-
-	return userVotes, votesTime, nil
+	return nil
 }
 
-func isUserAllowedToVoteAgain(timeWhenUserVotes time.Time) (bool, error) {
+func isUserAllowedToVoteAgainAfterOneHourTime(timeWhenUserVotes time.Time) error {
 	duration := time.Now().Sub(timeWhenUserVotes)
 	if duration <= time.Hour {
-		return false, errors.New("user only allowed to vote once in an hour, your last vote was at:" + timeWhenUserVotes.Format("2006.01.02 15:04"))
+		return errors.New("user only allowed to vote once in an hour, your last vote was at:" + timeWhenUserVotes.Format("2006.01.02 15:04"))
 	}
 
-	return true, nil
+	return nil
 }
 
-func isUserAllowedToVoteForThatCandidate(votesOfUser []int, desiredID int) (bool, error) {
-	for _, vote := range votesOfUser {
-		if vote == desiredID {
-			return false, errors.New("you are not allowed to vote for the same candidate twice")
-		}
-	}
-
-	return true, nil
-}
-
-func castUserDataToUseInMap(userVotes, timeWhenUserVote string) ([]int, time.Time, error) {
+func castUserDataToUseInMap(timeWhenUserVote string) (time.Time, error) {
 
 	voteTime := time.Time{}
-	var votes []int
-	numStrParts := strings.Split(userVotes, ", ")
-	for _, numStrPart := range numStrParts {
-		num, err := strconv.Atoi(numStrPart)
-		if err != nil {
-			return nil, time.Time{}, err
-		}
-		votes = append(votes, num)
-	}
 
 	if timeWhenUserVote == "0" {
-		return votes, time.Time{}, nil
+		return time.Time{}, nil
 	}
 	layout := "2006-01-02 15:04:05.000000-07:00"
 	voteTime, err := time.Parse(layout, timeWhenUserVote)
 	if err != nil {
-		return nil, time.Time{}, err
+		return time.Time{}, err
 	}
 
-	return votes, voteTime, nil
+	return voteTime, nil
 }

@@ -19,15 +19,14 @@ func UserRoute(e *echo.Echo) {
 	protected.PUT("/user/:id", userHandler.EditUser)
 	protected.DELETE("/user/:id", userHandler.DeleteUser)
 	protected.POST("/user/:id/vote", userHandler.PostVote)
-	protected.DELETE("/user/:id/vote", userHandler.DeleteVote)
+	protected.DELETE("/user/:id/vote", userHandler.PostVote)
 	// GetUserRateModerator() what route to use for it?
-	protected.GET("/user/:id/vote", userHandler.GetUserRate)
-	protected.GET("/users/vote", userHandler.GetUsersRate)
+	//protected.GET("/user/:id/vote", userHandler.GetUserRate)
+	//protected.GET("/users/vote", userHandler.GetUsersRate)
 
 	e.POST("/user", userHandler.CreateUser)
 	e.GET("/user/:id", userHandler.GetUser)
 	e.GET("/users", userHandler.GetAllUsers)
 	e.POST("/login", userHandler.Login)
-	e.POST("/register", userHandler.CreateUser)
 
 }
