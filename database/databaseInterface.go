@@ -10,4 +10,5 @@ type DbInterface interface {
 	CountUserRate(userID int64) (int, error)
 	WriteUserVotes(userID, voterID int) error
 	GetUserVotes(userID, voterID int64) (string, error)
+	GetUserVotesToCheckTime(voterID int) (string, error)
 }

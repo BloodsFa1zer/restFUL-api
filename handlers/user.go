@@ -5,7 +5,6 @@ import (
 	"app3.1/response"
 	"app3.1/service"
 	"errors"
-	"fmt"
 	"github.com/labstack/echo/v4"
 	"net/http"
 	"strconv"
@@ -141,7 +140,7 @@ func (uh *UserHandler) PostVote(c echo.Context) error {
 	if err != nil {
 		return c.JSON(http.StatusUnauthorized, response.UserResponse{Status: http.StatusUnauthorized, Message: "error", Data: &echo.Map{"data": err.Error()}})
 	}
-	fmt.Println("voterID:", voterID)
+
 	err, respStatus := uh.userService.PostVote(userID, int(voterID))
 	if err != nil {
 		return c.JSON(respStatus, response.UserResponse{Status: respStatus, Message: "error", Data: &echo.Map{"data": err.Error()}})

@@ -8,4 +8,4 @@ CREATE TABLE IF NOT EXISTS Voting (
     FOREIGN KEY (voter_id) REFERENCES Users(ID)
 );
 
-SELECT * FROM Voting WHERE user_id = 11;
+SELECT updated_at FROM Voting WHERE user_id = 11;

@@ -14,7 +14,7 @@ type UserServiceInterface interface {
 	CreateToken(user database.User) (string, error, int)
 	GetUserIDViaToken(user interface{}) (int64, error)
 	IsUserHavePermission(roleToCheck string, user interface{}) (bool, int)
-	isUserAllowedToVote(voterID, userID int) error
+	isUserAllowedToVote(voterID, userID int) (bool, error)
 	PostVote(userID, voterID int) (error, int)
 	DeleteVote(userID, voterID int) (error, int)
 }

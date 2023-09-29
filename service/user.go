@@ -158,7 +158,7 @@ func (us *UserService) GetUserIDViaToken(user interface{}) (int64, error) {
 }
 
 func (us *UserService) PostVote(userID, voterID int) (error, int) {
-	err := us.isUserAllowedToVote(voterID, userID)
+	_, err := us.isUserAllowedToVote(voterID, userID)
 	if err != nil {
 		return err, http.StatusLocked
 	}
@@ -174,7 +174,7 @@ func (us *UserService) PostVote(userID, voterID int) (error, int) {
 }
 
 func (us *UserService) DeleteVote(userID, voterID int) (error, int) {
-	err := us.isUserAllowedToVote(voterID, userID)
+	_, err := us.isUserAllowedToVote(voterID, userID)
 	if err != nil {
 		return err, http.StatusLocked
 	}
@@ -189,42 +189,44 @@ func (us *UserService) DeleteVote(userID, voterID int) (error, int) {
 	return nil, http.StatusOK
 }
 
-func (us *UserService) isUserAllowedToVote(voterID, userID int) error {
+func (us *UserService) isUserAllowedToVote(voterID, userID int) (bool, error) {
+	if voterID == userID {
+		return false, errors.New(" you are not allowed to vote for yourself")
+	}
+
 	isAllowedCandidate := false
 
-	voteTime, err := us.DbUser.GetUserVotes(int64(voterID), int64(userID))
+	voteTime, err := us.DbUser.GetUserVotes(int64(userID), int64(voterID))
 	if err == sql.ErrNoRows {
 		isAllowedCandidate = true
+		voteTime, err = us.DbUser.GetUserVotesToCheckTime(voterID)
+		if err == sql.ErrNoRows {
+			return true, nil
+		} else if err != nil {
+			return false, err
+		}
 		voteTime = "0"
 	} else if err != nil {
-		return err
-	}
-	fmt.Println("vt:", voteTime)
-	if voteTime == "0" {
-		return nil
+		return false, err
 	}
 
 	timeWhenUserVotes, err := castUserDataToUseInMap(voteTime)
 	if err != nil {
-		return err
-	}
-
-	if voterID == userID {
-		return errors.New(" you are not allowed to vote for yourself")
+		return false, err
 	}
 
 	if isAllowedCandidate {
 		if !timeWhenUserVotes.IsZero() {
 			errVoteTime := isUserAllowedToVoteAgainAfterOneHourTime(timeWhenUserVotes)
 			if errVoteTime != nil {
-				return errVoteTime
+				return false, errVoteTime
 			}
 		}
 	} else {
-		return errors.New("user cannot vote for the same candidate twice")
+		return false, errors.New("user cannot vote for the same candidate twice")
 	}
 
-	return nil
+	return true, nil
 }
 
 func isUserAllowedToVoteAgainAfterOneHourTime(timeWhenUserVotes time.Time) error {

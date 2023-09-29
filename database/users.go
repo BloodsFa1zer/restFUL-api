@@ -4,6 +4,7 @@ import (
 	"app3.1/config"
 	"app3.1/hash"
 	"database/sql"
+	"fmt"
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/rs/zerolog/log"
 	"time"
@@ -219,6 +220,23 @@ func (db *UserDatabase) GetUserVotes(userID, voterID int64) (string, error) {
 	err := row.Scan(&voteTime)
 	if err != nil {
 		if err == sql.ErrNoRows {
+			return "", err
+		}
+		log.Warn().Err(err).Msg(" can`t find user")
+		return "", err
+	}
+
+	return voteTime, nil
+}
+
+func (db *UserDatabase) GetUserVotesToCheckTime(voterID int) (string, error) {
+	sqlVotesCheckTime := "SELECT updated_at FROM Voting WHERE voter_id = ? ORDER BY updated_at DESC LIMIT 1"
+	voteTime := ""
+	row := db.Connection.QueryRow(sqlVotesCheckTime, voterID)
+	err := row.Scan(&voteTime)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			fmt.Println("err", err)
 			return "", err
 		}
 		log.Warn().Err(err).Msg(" can`t find user")
