@@ -194,18 +194,18 @@ func (us *UserService) isUserAllowedToVote(voterID, userID int) (bool, error) {
 		return false, errors.New(" you are not allowed to vote for yourself")
 	}
 
-	isAllowedCandidate := false
+	isUserAllowedToVoteForThatCandidate := false
 
 	voteTime, err := us.DbUser.GetUserVotes(int64(userID), int64(voterID))
 	if err == sql.ErrNoRows {
-		isAllowedCandidate = true
-		voteTime, err = us.DbUser.GetUserVotesToCheckTime(voterID)
-		if err == sql.ErrNoRows {
-			return true, nil
-		} else if err != nil {
-			return false, err
-		}
-		voteTime = "0"
+		isUserAllowedToVoteForThatCandidate = true
+	} else if err != nil {
+		return false, err
+	}
+
+	voteTime, err = us.DbUser.GetUserVotesToCheckTime(voterID)
+	if err == sql.ErrNoRows {
+		return true, nil
 	} else if err != nil {
 		return false, err
 	}
@@ -215,7 +215,7 @@ func (us *UserService) isUserAllowedToVote(voterID, userID int) (bool, error) {
 		return false, err
 	}
 
-	if isAllowedCandidate {
+	if isUserAllowedToVoteForThatCandidate {
 		if !timeWhenUserVotes.IsZero() {
 			errVoteTime := isUserAllowedToVoteAgainAfterOneHourTime(timeWhenUserVotes)
 			if errVoteTime != nil {

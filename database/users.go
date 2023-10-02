@@ -220,10 +220,10 @@ func (db *UserDatabase) GetUserVotes(userID, voterID int64) (string, error) {
 	err := row.Scan(&voteTime)
 	if err != nil {
 		if err == sql.ErrNoRows {
-			return "", err
+			return "0", err
 		}
 		log.Warn().Err(err).Msg(" can`t find user")
-		return "", err
+		return "0", err
 	}
 
 	return voteTime, nil
@@ -247,24 +247,20 @@ func (db *UserDatabase) GetUserVotesToCheckTime(voterID int) (string, error) {
 }
 
 func (db *UserDatabase) CountUserRate(userID int64) (int, error) {
-	sqlSelectVotes := "SELECT * FROM Voting WHERE user_id = ?"
-	result, err := db.Connection.Exec(sqlSelectVotes, userID)
+	sqlSelectVotes := "SELECT user_id FROM Voting WHERE user_id = ?"
+	rows, err := db.Connection.Query(sqlSelectVotes, userID)
 	if err != nil {
 		log.Warn().Err(err).Msg(" can`t select that user votes")
 		return 0, err
 	}
 
-	affectedRow, err := result.RowsAffected()
-	if err != nil {
-		log.Warn().Err(err).Msg(" error getting affected rows")
-		return 0, err
+	defer rows.Close()
+	userRate := 0
+
+	for rows.Next() {
+		userRate++
 	}
 
-	if affectedRow == 0 {
-		log.Warn().Msg(" no rows affected")
-		return 0, sql.ErrNoRows
-	}
-
-	return int(affectedRow), nil
+	return userRate, nil
 
 }
