@@ -162,7 +162,7 @@ func (uh *UserHandler) PostVoteAgainst(c echo.Context) error {
 		return c.JSON(http.StatusUnauthorized, response.UserResponse{Status: http.StatusUnauthorized, Message: "error", Data: &echo.Map{"data": err.Error()}})
 	}
 
-	err, respStatus := uh.userService.PostVoteFor(userID, int(voterID))
+	err, respStatus := uh.userService.PostVoteAgainst(userID, int(voterID))
 	if err != nil {
 		return c.JSON(respStatus, response.UserResponse{Status: respStatus, Message: "error", Data: &echo.Map{"data": err.Error()}})
 	}
