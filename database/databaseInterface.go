@@ -8,7 +8,9 @@ type DbInterface interface {
 	DeleteUserByID(ID int64) error
 	FindByNicknameToGetUserPassword(nickname string) (*User, error)
 	CountUserRate(userID int64) (int, error)
-	WriteUserVotes(userID, voterID int) error
-	GetUserVotes(userID, voterID int64) (string, error)
-	GetUserVotesToCheckTime(voterID int) (string, error)
+	WriteUserVotes(userID, voterID, voteValue int) error
+	WithdrawVote(userID, voterID int) error
+	ChangeVote(userID, voterID int) error
+	IsSuchVoteExists(userID, voterID int) (bool, error)
+	GetUserLastVoteTime(voterID int) (string, error)
 }

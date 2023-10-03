@@ -15,6 +15,8 @@ type UserServiceInterface interface {
 	GetUserIDViaToken(user interface{}) (int64, error)
 	IsUserHavePermission(roleToCheck string, user interface{}) (bool, int)
 	isUserAllowedToVote(voterID, userID int) (bool, error)
-	PostVote(userID, voterID int) (error, int)
+	PostVoteFor(userID, voterID int) (error, int)
+	PostVoteAgainst(userID, voterID int) (error, int)
 	DeleteVote(userID, voterID int) (error, int)
+	ChangeVote(userID, voterID int) (error, int)
 }

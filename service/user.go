@@ -157,13 +157,29 @@ func (us *UserService) GetUserIDViaToken(user interface{}) (int64, error) {
 	return claims.ID, nil
 }
 
-func (us *UserService) PostVote(userID, voterID int) (error, int) {
+func (us *UserService) PostVoteFor(userID, voterID int) (error, int) {
 	_, err := us.isUserAllowedToVote(voterID, userID)
 	if err != nil {
 		return err, http.StatusLocked
 	}
 
-	err = us.DbUser.WriteUserVotes(userID, voterID)
+	err = us.DbUser.WriteUserVotes(userID, voterID, 1)
+	if err == sql.ErrNoRows {
+		return errors.New("there is no user with that ID"), http.StatusBadRequest
+	} else if err != nil {
+		return err, http.StatusInternalServerError
+	}
+
+	return nil, http.StatusOK
+}
+
+func (us *UserService) PostVoteAgainst(userID, voterID int) (error, int) {
+	_, err := us.isUserAllowedToVote(voterID, userID)
+	if err != nil {
+		return err, http.StatusLocked
+	}
+
+	err = us.DbUser.WriteUserVotes(userID, voterID, -1)
 	if err == sql.ErrNoRows {
 		return errors.New("there is no user with that ID"), http.StatusBadRequest
 	} else if err != nil {
@@ -174,14 +190,20 @@ func (us *UserService) PostVote(userID, voterID int) (error, int) {
 }
 
 func (us *UserService) DeleteVote(userID, voterID int) (error, int) {
-	_, err := us.isUserAllowedToVote(voterID, userID)
-	if err != nil {
-		return err, http.StatusLocked
+	err := us.DbUser.WithdrawVote(userID, voterID)
+	if err == sql.ErrNoRows {
+		return errors.New("there is no such vote to delete"), http.StatusBadRequest
+	} else if err != nil {
+		return err, http.StatusInternalServerError
 	}
 
-	err = us.DbUser.WriteUserVotes(userID, voterID)
+	return nil, http.StatusOK
+}
+
+func (us *UserService) ChangeVote(userID, voterID int) (error, int) {
+	err := us.DbUser.ChangeVote(userID, voterID)
 	if err == sql.ErrNoRows {
-		return errors.New("there is no user with that ID"), http.StatusBadRequest
+		return errors.New("there is no such vote to delete"), http.StatusBadRequest
 	} else if err != nil {
 		return err, http.StatusInternalServerError
 	}
@@ -194,51 +216,37 @@ func (us *UserService) isUserAllowedToVote(voterID, userID int) (bool, error) {
 		return false, errors.New(" you are not allowed to vote for yourself")
 	}
 
-	isUserAllowedToVoteForThatCandidate := false
-
-	voteTime, err := us.DbUser.GetUserVotes(int64(userID), int64(voterID))
-	if err == sql.ErrNoRows {
-		isUserAllowedToVoteForThatCandidate = true
-	} else if err != nil {
+	exists, err := us.DbUser.IsSuchVoteExists(userID, voterID)
+	if err != nil && err != sql.ErrNoRows {
 		return false, err
 	}
+	if exists {
+		return false, errors.New("user cannot vote for the same candidate twice")
+	}
 
-	voteTime, err = us.DbUser.GetUserVotesToCheckTime(voterID)
+	voteTime, err := us.DbUser.GetUserLastVoteTime(voterID)
 	if err == sql.ErrNoRows {
 		return true, nil
 	} else if err != nil {
 		return false, err
 	}
 
-	timeWhenUserVotes, err := castUserDataToUseInMap(voteTime)
+	timeWhenUserVotes, err := castUserTime(voteTime)
 	if err != nil {
 		return false, err
 	}
 
-	if isUserAllowedToVoteForThatCandidate {
-		if !timeWhenUserVotes.IsZero() {
-			errVoteTime := isUserAllowedToVoteAgainAfterOneHourTime(timeWhenUserVotes)
-			if errVoteTime != nil {
-				return false, errVoteTime
-			}
+	if !timeWhenUserVotes.IsZero() {
+		duration := time.Now().Sub(timeWhenUserVotes)
+		if duration <= time.Hour {
+			return false, errors.New("user only allowed to vote once in an hour, your last vote was at:" + timeWhenUserVotes.Format("2006.01.02 15:04"))
 		}
-	} else {
-		return false, errors.New("user cannot vote for the same candidate twice")
 	}
 
 	return true, nil
 }
 
-func isUserAllowedToVoteAgainAfterOneHourTime(timeWhenUserVotes time.Time) error {
-	duration := time.Now().Sub(timeWhenUserVotes)
-	if duration <= time.Hour {
-		return errors.New("user only allowed to vote once in an hour, your last vote was at:" + timeWhenUserVotes.Format("2006.01.02 15:04"))
-	}
-
-	return nil
-}
-
-func castUserDataToUseInMap(timeWhenUserVote string) (time.Time, error) {
+func castUserTime(timeWhenUserVote string) (time.Time, error) {
 
 	voteTime := time.Time{}
 
