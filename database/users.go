@@ -302,7 +302,7 @@ func (db *UserDatabase) GetUserLastVoteTime(voterID int) (string, error) {
 }
 
 func (db *UserDatabase) CountUserRate(userID int64) (int, error) {
-	sqlSelectVotes := "SELECT EXISTS(SELECT * FROM Voting WHERE user_id != 0) AND sum(vote_value) FROM Voting where user_id = ?"
+	sqlSelectVotes := "SELECT IFNULL(SUM(vote_value), 0) FROM Voting"
 	row := db.Connection.QueryRow(sqlSelectVotes, userID)
 	userRate := 0
 	err := row.Scan(&userRate)
