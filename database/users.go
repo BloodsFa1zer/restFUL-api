@@ -20,7 +20,7 @@ type User struct {
 	CreatedAt string  `db:"created_at" json:"CreatedAt"`
 	UpdatedAt *string `db:"updated_at" json:"UpdatedAt,omitempty"`
 	DeletedAt *string `db:"deleted_at" json:"DeletedAt,omitempty"`
-	Rating    int     `db:"rating" json:"Rating"`
+	Rating    int64   `db:"rating" json:"Rating"`
 }
 
 type UserDatabase struct {
@@ -42,20 +42,16 @@ func NewUserDatabase() *UserDatabase {
 }
 
 func (db *UserDatabase) FindByID(ID int64) (*User, error) {
-	sqlSelect := `SELECT * FROM Users WHERE ID = ? AND deleted_at == 'NULL'`
-	userRate, err := db.CountUserRate(ID)
-	if err == sql.ErrNoRows {
-		userRate = 0
-	} else if err != nil {
-		return nil, err
-	}
+	sqlSelect := `SELECT Users.*, sum(Voting.vote_value) from Users
+left join Voting on Voting.user_id=Users.ID where ID = ?;`
+	var num sql.NullInt64
 	var selectedUser User
 
 	row := db.Connection.QueryRow(sqlSelect, ID)
-	err = row.Scan(&selectedUser.ID, &selectedUser.Nickname, &selectedUser.FirstName,
+	err := row.Scan(&selectedUser.ID, &selectedUser.Nickname, &selectedUser.FirstName,
 		&selectedUser.LastName, &selectedUser.Password, &selectedUser.CreatedAt,
-		&selectedUser.UpdatedAt, &selectedUser.DeletedAt, &selectedUser.Role)
-	selectedUser.Rating = userRate
+		&selectedUser.UpdatedAt, &selectedUser.DeletedAt, &selectedUser.Role, &num)
+	selectedUser.Rating = num.Int64
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return nil, err
@@ -299,17 +295,4 @@ func (db *UserDatabase) GetUserLastVoteTime(voterID int) (string, error) {
 	}
 
 	return voteTime, nil
-}
-
-func (db *UserDatabase) CountUserRate(userID int64) (int, error) {
-	sqlSelectVotes := "SELECT IFNULL(SUM(vote_value), 0) FROM Voting"
-	row := db.Connection.QueryRow(sqlSelectVotes, userID)
-	userRate := 0
-	err := row.Scan(&userRate)
-	if err != nil {
-		log.Warn().Err(err).Msg(" can`t select user`s votes")
-		return 0, err
-	}
-
-	return userRate, nil
 }

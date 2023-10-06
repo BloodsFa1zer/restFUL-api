@@ -9,7 +9,10 @@ CREATE TABLE IF NOT EXISTS Voting (
     FOREIGN KEY (voter_id) REFERENCES Users(ID)
 );
 
-select sum(vote_value) from Voting;
+
+SELECT Users.*, sum(Voting.vote_value) from Users
+left join Voting on Voting.user_id = Users.ID where ID = ?;
+
 
 
 
