@@ -6,6 +6,7 @@ import (
 	"app3.1/hash"
 	"database/sql"
 	"errors"
+	"fmt"
 	"github.com/go-playground/validator/v10"
 	"github.com/golang-jwt/jwt/v5"
 	"net/http"
@@ -87,24 +88,25 @@ func (us *UserService) DeleteUser(userID int64) (error, int) {
 	return errors.New("user successfully deleted"), http.StatusOK
 }
 
-func (us *UserService) GetToken(nickname, password string) (string, error, int) {
+func (us *UserService) CreateToken(user database.User) (string, error, int) {
 	cfg := config.LoadENV("config/.env")
 	cfg.ParseENV()
 
-	user, err := us.DbUser.FindByNicknameToGetUserPassword(nickname)
+	SelectedUser, err := us.DbUser.FindByNicknameToGetUserPassword(user.Nickname)
 	if err == sql.ErrNoRows {
-		return "", errors.New("there is no user with that NickName"), http.StatusBadRequest
+		return "", errors.New("you have no account and will be redirected to registration page"), http.StatusSeeOther
 	} else if err != nil {
 		return "", err, http.StatusInternalServerError
 	}
 
-	if hash.Verify(user.Password, password) != true {
+	if hash.Verify(SelectedUser.Password, user.Password) != true {
 		return "", errors.New("incorrect password"), http.StatusUnauthorized
 	}
 
 	claims := &config.JwtCustomClaims{
-		Name: user.Nickname,
-		Role: user.Role,
+		ID:   SelectedUser.ID,
+		Name: SelectedUser.Nickname,
+		Role: SelectedUser.Role,
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(time.Now().Add(time.Hour * 24)),
 		},
@@ -133,7 +135,129 @@ func (us *UserService) IsUserHavePermission(roleToCheck string, user interface{}
 	if !ok {
 		return false, http.StatusBadRequest
 	}
+
 	claims := userToken.Claims.(*config.JwtCustomClaims)
 
 	return claims.Role == roleToCheck, http.StatusOK
+}
+
+func (us *UserService) GetUserIDViaToken(user interface{}) (int64, error) {
+	userToken, ok := user.(*jwt.Token)
+	if !userToken.Valid {
+		return 0, errors.New("token is invalid")
+	}
+	if !ok {
+		return 0, errors.New("no such token found")
+	}
+
+	claims := userToken.Claims.(*config.JwtCustomClaims)
+	fmt.Println(claims.Name)
+	fmt.Println(claims.ID)
+
+	return claims.ID, nil
+}
+
+func (us *UserService) PostVoteFor(userID, voterID int) (error, int) {
+	_, err := us.isUserAllowedToVote(voterID, userID)
+	if err != nil {
+		return err, http.StatusLocked
+	}
+
+	err = us.DbUser.WriteUserVotes(userID, voterID, 1)
+	if err == sql.ErrNoRows {
+		return errors.New("there is no user with that ID"), http.StatusBadRequest
+	} else if err != nil {
+		return err, http.StatusInternalServerError
+	}
+
+	return nil, http.StatusOK
+}
+
+func (us *UserService) PostVoteAgainst(userID, voterID int) (error, int) {
+	_, err := us.isUserAllowedToVote(voterID, userID)
+	if err != nil {
+		return err, http.StatusLocked
+	}
+
+	err = us.DbUser.WriteUserVotes(userID, voterID, -1)
+	if err == sql.ErrNoRows {
+		return errors.New("there is no user with that ID"), http.StatusBadRequest
+	} else if err != nil {
+		return err, http.StatusInternalServerError
+	}
+
+	return nil, http.StatusOK
+}
+
+func (us *UserService) DeleteVote(userID, voterID int) (error, int) {
+	err := us.DbUser.WithdrawVote(userID, voterID)
+	if err == sql.ErrNoRows {
+		return errors.New("there is no such vote to delete"), http.StatusBadRequest
+	} else if err != nil {
+		return err, http.StatusInternalServerError
+	}
+
+	return nil, http.StatusOK
+}
+
+func (us *UserService) ChangeVote(userID, voterID int) (error, int) {
+	err := us.DbUser.ChangeVote(userID, voterID)
+	if err == sql.ErrNoRows {
+		return errors.New("there is no such vote to delete"), http.StatusBadRequest
+	} else if err != nil {
+		return err, http.StatusInternalServerError
+	}
+
+	return nil, http.StatusOK
+}
+
+func (us *UserService) isUserAllowedToVote(voterID, userID int) (bool, error) {
+	if voterID == userID {
+		return false, errors.New(" you are not allowed to vote for yourself")
+	}
+
+	exists, err := us.DbUser.IsSuchVoteExists(userID, voterID)
+	if err != nil && err != sql.ErrNoRows {
+		return false, err
+	}
+	if exists {
+		return false, errors.New("user cannot vote for the same candidate twice")
+	}
+
+	voteTime, err := us.DbUser.GetUserLastVoteTime(voterID)
+	if err == sql.ErrNoRows {
+		return true, nil
+	} else if err != nil {
+		return false, err
+	}
+
+	timeWhenUserVotes, err := castUserTime(voteTime)
+	if err != nil {
+		return false, err
+	}
+
+	if !timeWhenUserVotes.IsZero() {
+		duration := time.Now().Sub(timeWhenUserVotes)
+		if duration <= time.Hour {
+			return false, errors.New("user only allowed to vote once in an hour, your last vote was at:" + timeWhenUserVotes.Format("2006.01.02 15:04"))
+		}
+	}
+
+	return true, nil
+}
+
+func castUserTime(timeWhenUserVote string) (time.Time, error) {
+
+	voteTime := time.Time{}
+
+	if timeWhenUserVote == "0" {
+		return time.Time{}, nil
+	}
+	layout := "2006-01-02 15:04:05.000000-07:00"
+	voteTime, err := time.Parse(layout, timeWhenUserVote)
+	if err != nil {
+		return time.Time{}, err
+	}
+
+	return voteTime, nil
 }

@@ -11,6 +11,12 @@ type UserServiceInterface interface {
 	EditUser(ID int64, user database.User) (int64, error, int)
 	GetAllUsers() (*[]database.User, error, int)
 	DeleteUser(userID int64) (error, int)
-	GetToken(nickname, password string) (string, error, int)
+	CreateToken(user database.User) (string, error, int)
+	GetUserIDViaToken(user interface{}) (int64, error)
 	IsUserHavePermission(roleToCheck string, user interface{}) (bool, int)
+	isUserAllowedToVote(voterID, userID int) (bool, error)
+	PostVoteFor(userID, voterID int) (error, int)
+	PostVoteAgainst(userID, voterID int) (error, int)
+	DeleteVote(userID, voterID int) (error, int)
+	ChangeVote(userID, voterID int) (error, int)
 }

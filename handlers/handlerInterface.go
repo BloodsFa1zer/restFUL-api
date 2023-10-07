@@ -12,4 +12,8 @@ type UserHandlersInterface interface {
 	GetAllUsers(c echo.Context) error
 	Login(c echo.Context) error
 	isUserHavePermissionToActions(roleToFind string, c echo.Context) (bool, int)
+	PostVoteFor(c echo.Context) error
+	PostVoteAgainst(c echo.Context) error
+	DeleteVote(c echo.Context) error
+	ChangeVote(c echo.Context) error
 }

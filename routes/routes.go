@@ -18,6 +18,10 @@ func UserRoute(e *echo.Echo) {
 	protected.Use(echojwt.WithConfig(config.NewConfig()))
 	protected.PUT("/user/:id", userHandler.EditUser)
 	protected.DELETE("/user/:id", userHandler.DeleteUser)
+	protected.POST("/user/:id/vote_for", userHandler.PostVoteFor)
+	protected.POST("/user/:id/vote_against", userHandler.PostVoteAgainst)
+	protected.PUT("/user/:id/vote", userHandler.ChangeVote)
+	protected.DELETE("/user/:id/vote", userHandler.DeleteVote)
 
 	e.POST("/user", userHandler.CreateUser)
 	e.GET("/user/:id", userHandler.GetUser)

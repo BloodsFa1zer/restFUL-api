@@ -36,6 +36,7 @@ func (cfg *Config) ParseENV() {
 }
 
 type JwtCustomClaims struct {
+	ID   int64  `json:"ID"`
 	Name string `json:"name"`
 	Role string `json:"role"`
 	jwt.RegisteredClaims
