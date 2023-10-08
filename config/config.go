@@ -13,6 +13,7 @@ type Config struct {
 	DbName     string `env:"DatabaseName"`
 	DbPath     string `env:"DatabasePath"`
 	SigningKey string `env:"SigningKey"`
+	RedisAddr  string `env:"RedisAddr"`
 }
 
 func LoadENV(filename string) *Config {
