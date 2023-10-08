@@ -1,41 +1,17 @@
 package main
 
 import (
-	"app3.1/database"
-	"fmt"
-	"github.com/go-redis/redis"
+	"app3.1/Middleware"
+	"app3.1/routes"
+	"github.com/labstack/echo/v4"
 )
 
 func main() {
-	//e := echo.New()
-	//e.HidePort = true
-	//
-	//Middleware.UserAuth(e)
-	//routes.UserRoute(e)
-	//
-	//e.Logger.Fatal(e.Start(":6000"))
+	e := echo.New()
+	e.HidePort = true
 
-	client := redis.NewClient(&redis.Options{
-		Addr:     "localhost:6379",
-		Password: "",
-		DB:       0,
-	})
+	Middleware.UserAuth(e)
+	routes.UserRoute(e)
 
-	pong, err := client.Ping().Result()
-	fmt.Println(pong, err)
-
-	// we can call set with a Key' and a 'Value'
-	err = client.Set("1", database.User{}, 0).Err()
-	// if there has been an error setting the value
-	// handle the error
-	if err != nil {
-		fmt.Println(err)
-	}
-
-	val, err := client.Get("name").Result()
-	if err != nil {
-		fmt.Println(err)
-	}
-
-	fmt.Println(val)
+	e.Logger.Fatal(e.Start(":6000"))
 }
