@@ -42,8 +42,8 @@ func NewUserDatabase() *UserDatabase {
 }
 
 func (db *UserDatabase) FindByID(ID int64) (*User, error) {
-	sqlSelect := `SELECT Users.*, sum(Voting.vote_value) from Users
-left join Voting on Voting.user_id=Users.ID where ID = ?;`
+	sqlSelect := `SELECT Users.*, sum(Voting.vote_value) FROM Users
+	LEFT JOIN Voting ON Voting.user_id=Users.ID WHERE ID = ?;`
 	var num sql.NullInt64
 	var selectedUser User
 
@@ -133,6 +133,7 @@ func (db *UserDatabase) UpdateUser(ID int64, user User) (int64, error) {
 }
 
 func (db *UserDatabase) FindUsers() (*[]User, error) {
+
 	sqlSelect := "SELECT * FROM Users WHERE deleted_at == 'NULL'"
 	rows, err := db.Connection.Query(sqlSelect)
 	if err != nil {

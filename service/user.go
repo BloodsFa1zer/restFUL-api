@@ -4,22 +4,25 @@ import (
 	"app3.1/config"
 	"app3.1/database"
 	"app3.1/hash"
+	"app3.1/redisDB"
 	"database/sql"
 	"errors"
 	"fmt"
 	"github.com/go-playground/validator/v10"
+	"github.com/go-redis/redis"
 	"github.com/golang-jwt/jwt/v5"
 	"net/http"
 	"time"
 )
 
 type UserService struct {
-	DbUser   database.DbInterface
-	validate *validator.Validate
+	DbUser      database.DbInterface
+	validate    *validator.Validate
+	RedisClient redisDB.ClientRedisInterface
 }
 
-func NewUserService(DbUser database.DbInterface, validate *validator.Validate) *UserService {
-	return &UserService{DbUser: DbUser, validate: validate}
+func NewUserService(DbUser database.DbInterface, validate *validator.Validate, RedisClient redisDB.ClientRedis) *UserService {
+	return &UserService{DbUser: DbUser, validate: validate, RedisClient: &RedisClient}
 }
 
 func (us *UserService) CreateUser(user database.User) (int64, error, int) {
@@ -43,11 +46,21 @@ func (us *UserService) CreateUser(user database.User) (int64, error, int) {
 }
 
 func (us *UserService) GetUser(userID int64) (*database.User, error, int) {
-	user, err := us.DbUser.FindByID(userID)
-	if err == sql.ErrNoRows {
-		return nil, errors.New("there is no user with that ID"), http.StatusBadRequest
+	user, err := us.RedisClient.GetUser(userID)
+	if err == redis.Nil {
+		user, err = us.DbUser.FindByID(userID)
+		if err == sql.ErrNoRows {
+			return nil, errors.New("there is no user with that ID"), http.StatusBadRequest
+		} else if err != nil {
+			return nil, err, http.StatusInternalServerError
+		}
+
+		err = us.RedisClient.SetUser(*user)
+		if err != nil {
+			return nil, err, http.StatusLocked
+		}
 	} else if err != nil {
-		return nil, err, http.StatusInternalServerError
+		return nil, err, http.StatusBadRequest
 	}
 
 	return user, nil, http.StatusOK
@@ -68,10 +81,19 @@ func (us *UserService) EditUser(ID int64, user database.User) (int64, error, int
 }
 
 func (us *UserService) GetAllUsers() (*[]database.User, error, int) {
+	users, err := us.RedisClient.GetUsers()
+	if err == redis.Nil {
+		users, err = us.DbUser.FindUsers()
+		if err != nil {
+			return nil, err, http.StatusInternalServerError
+		}
 
-	users, err := us.DbUser.FindUsers()
-	if err != nil {
-		return nil, err, http.StatusInternalServerError
+		err = us.RedisClient.SetUsers(*users)
+		if err != nil {
+			return nil, err, http.StatusLocked
+		}
+	} else if err != nil {
+		return nil, err, http.StatusBadRequest
 	}
 
 	return users, err, http.StatusOK
