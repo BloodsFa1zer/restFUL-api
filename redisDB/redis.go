@@ -3,79 +3,87 @@ package redisDB
 import (
 	"app3.1/config"
 	"app3.1/database"
-	"encoding/json"
-	"github.com/go-redis/redis"
+	"context"
+	"github.com/go-redis/cache/v8"
+	"github.com/go-redis/redis/v8"
 	"github.com/rs/zerolog/log"
 	"strconv"
 	"time"
 )
 
-// Maybe no new directory needed? and just put it in the database directory?
 type ClientRedis struct {
-	Connection *redis.Client
+	Connection      *redis.Client
+	CacheConnection *cache.Cache
 }
 
 func NewClientRedis() *ClientRedis {
 	cfg := config.LoadENV("config/.env")
 	cfg.ParseENV()
 
+	num, err := strconv.Atoi(cfg.RedisDB)
+	if err != nil {
+		return nil
+	}
+
 	client := redis.NewClient(&redis.Options{
 		Addr:     cfg.RedisAddr,
-		Password: "",
-		DB:       0,
+		Password: cfg.RedisPassword,
+		DB:       num,
 	})
 
-	_, err := client.Ping().Result()
+	_, err = client.Ping(context.TODO()).Result()
 	if err != nil {
 		log.Warn().Err(err).Msg("can`t connect to redisDB server")
 		return nil
 	}
 
-	return &ClientRedis{Connection: client}
+	myCache := cache.New(&cache.Options{
+		Redis:      client,
+		LocalCache: cache.NewTinyLFU(1000, time.Minute),
+	})
+
+	return &ClientRedis{Connection: client, CacheConnection: myCache}
 }
 
 func (cl *ClientRedis) GetUser(ID int64) (*database.User, error) {
+	var user database.User
 
-	resultJSON, err := cl.Connection.Get(strconv.FormatInt(ID, 10)).Result()
-	if err != nil {
-		log.Warn().Err(err).Msg("can`t get user from Redis cache")
-		return nil, err
-	}
-	var retrievedUser database.User
-	err = json.Unmarshal([]byte(resultJSON), &retrievedUser)
-	if err != nil {
-		log.Warn().Err(err).Msg("can`t unmarshal data from redis cache")
+	if cl.CacheConnection.Exists(context.TODO(), strconv.FormatInt(ID, 10)) {
+		err := cl.CacheConnection.Get(context.TODO(), strconv.FormatInt(ID, 10), &user)
+		if err != nil {
+			log.Warn().Err(err).Msg("can`t get user from Redis cache")
+			return nil, err
+		}
+	} else {
+		return nil, redis.Nil
 	}
 
-	return &retrievedUser, nil
+	return &user, nil
 }
 
 func (cl *ClientRedis) GetUsers() (*[]database.User, error) {
-	resultJSON, err := cl.Connection.Get("users").Result()
-	if err != nil {
-		log.Warn().Err(err).Msg("can`t get user from Redis cache")
-		return nil, err
-	}
-
 	var users []database.User
-	err = json.Unmarshal([]byte(resultJSON), &users)
-	if err != nil {
-		log.Warn().Err(err).Msg("can`t unmarshal data from redis cache")
+	if cl.CacheConnection.Exists(context.TODO(), "users") {
+		err := cl.CacheConnection.Get(context.TODO(), "users", &users)
+		if err != nil {
+			log.Warn().Err(err).Msg("can`t get user from Redis cache")
+			return nil, err
+		}
+	} else {
+		return nil, redis.Nil
 	}
-
 	return &users, nil
 }
 
 func (cl *ClientRedis) SetUser(user database.User) error {
-	userJSON, err := json.Marshal(user)
+	err := cl.CacheConnection.Set(&cache.Item{
+		Ctx:   context.TODO(),
+		Key:   strconv.FormatInt(user.ID, 10),
+		Value: user,
+		TTL:   time.Minute,
+	})
 	if err != nil {
-		log.Warn().Err(err).Msg("can`t marshal data for the further caching")
-		return err
-	}
-
-	err = cl.Connection.Set(strconv.FormatInt(user.ID, 10), userJSON, 1*time.Minute).Err()
-	if err != nil {
-		log.Warn().Err(err).Msg("can`t set user for Redis cache")
+		log.Warn().Err(err).Msg("can`t set data")
 		return err
 	}
 
@@ -83,15 +91,13 @@ func (cl *ClientRedis) SetUser(user database.User) error {
 }
 
 func (cl *ClientRedis) SetUsers(users []database.User) error {
-	userJSON, err := json.Marshal(users)
+	err := cl.CacheConnection.Set(&cache.Item{
+		Ctx:   context.TODO(),
+		Key:   "users",
+		Value: users,
+		TTL:   time.Minute,
+	})
 	if err != nil {
-		log.Warn().Err(err).Msg("can`t marshal data for the further caching")
-		return err
-	}
-
-	err = cl.Connection.Set("users", userJSON, 1*time.Minute).Err()
-	if err != nil {
-		log.Warn().Err(err).Msg("can`t set user for Redis cache")
 		return err
 	}
 

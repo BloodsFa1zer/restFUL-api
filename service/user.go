@@ -9,7 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/go-playground/validator/v10"
-	"github.com/go-redis/redis"
+	"github.com/go-redis/redis/v8"
 	"github.com/golang-jwt/jwt/v5"
 	"net/http"
 	"time"
@@ -21,8 +21,8 @@ type UserService struct {
 	RedisClient redisDB.ClientRedisInterface
 }
 
-func NewUserService(DbUser database.DbInterface, validate *validator.Validate, RedisClient redisDB.ClientRedis) *UserService {
-	return &UserService{DbUser: DbUser, validate: validate, RedisClient: &RedisClient}
+func NewUserService(DbUser database.DbInterface, validate *validator.Validate, RedisClient redisDB.ClientRedisInterface) *UserService {
+	return &UserService{DbUser: DbUser, validate: validate, RedisClient: RedisClient}
 }
 
 func (us *UserService) CreateUser(user database.User) (int64, error, int) {
@@ -47,6 +47,7 @@ func (us *UserService) CreateUser(user database.User) (int64, error, int) {
 
 func (us *UserService) GetUser(userID int64) (*database.User, error, int) {
 	user, err := us.RedisClient.GetUser(userID)
+
 	if err == redis.Nil {
 		user, err = us.DbUser.FindByID(userID)
 		if err == sql.ErrNoRows {

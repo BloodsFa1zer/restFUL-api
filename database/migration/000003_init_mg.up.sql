@@ -8,11 +8,3 @@ CREATE TABLE IF NOT EXISTS Voting (
     FOREIGN KEY (user_id) REFERENCES Users(ID),
     FOREIGN KEY (voter_id) REFERENCES Users(ID)
 );
-
-
-SELECT Users.*, sum(Voting.vote_value) from Users
-left join Voting on Voting.user_id = Users.ID where ID = ?;
-
-
-
-

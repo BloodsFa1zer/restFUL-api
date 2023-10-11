@@ -10,10 +10,12 @@ import (
 )
 
 type Config struct {
-	DbName     string `env:"DatabaseName"`
-	DbPath     string `env:"DatabasePath"`
-	SigningKey string `env:"SigningKey"`
-	RedisAddr  string `env:"RedisAddr"`
+	DbName        string `env:"DatabaseName"`
+	DbPath        string `env:"DatabasePath"`
+	SigningKey    string `env:"SigningKey"`
+	RedisAddr     string `env:"RedisAddr"`
+	RedisPassword string `env:"RedisPassword"`
+	RedisDB       string `env:"RedisDB"`
 }
 
 func LoadENV(filename string) *Config {

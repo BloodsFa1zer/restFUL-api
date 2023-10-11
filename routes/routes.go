@@ -12,7 +12,7 @@ import (
 )
 
 var validate = validator.New()
-var userHandler = handlers.NewUserHandler(service.NewUserService(database.NewUserDatabase(), validate, *redisDB.NewClientRedis()))
+var userHandler = handlers.NewUserHandler(service.NewUserService(database.NewUserDatabase(), validate, redisDB.NewClientRedis()))
 
 func UserRoute(e *echo.Echo) {
 
