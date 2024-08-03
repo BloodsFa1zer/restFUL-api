@@ -9,7 +9,7 @@ This project is a RESTful API built with Go (Golang). It provides endpoints to p
 - CRUD operations for various resources
 - RESTful design principles
 - JSON-based API responses
-- Integration with a PostgreSQL database
+- Integration with a SQLite database
 - Docker support for containerization
 
 ## Installation
@@ -36,7 +36,7 @@ This project is a RESTful API built with Go (Golang). It provides endpoints to p
     go mod tidy
     ```
 
-3. Set up the PostgreSQL database:
+3. Set up the SQLite database:
     - Create a database named `restful_api`.
     - Configure your `config.yaml` with the appropriate database connection details.
 
